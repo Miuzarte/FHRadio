@@ -8,6 +8,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.Json
+import kotlin.time.Duration
+import kotlin.time.Duration.Companion.milliseconds
 
 object SettingsStore {
     private val s: Settings = Settings()
@@ -65,20 +67,20 @@ object SettingsStore {
 
     data class PlaybackState(
         val soundName: String? = null,
-        val positionMs: Long = 0L,
+        val position: Duration = Duration.ZERO,
         val type: String? = null,
     )
 
     private var cachedPlaybackState = PlaybackState(
         type = s.getStringOrNull("last_playback_type"),
         soundName = s.getStringOrNull("last_playback_sound_name"),
-        positionMs = s.getLong("last_playback_position_ms", 0L),
+        position = s.getLong("last_playback_position_ms", 0L).milliseconds,
     )
 
     fun loadPlaybackState() = cachedPlaybackState
 
-    fun savePlaybackState(soundName: String?, posMs: Long, type: String?) {
-        cachedPlaybackState = PlaybackState(soundName, posMs, type)
+    fun savePlaybackState(soundName: String?, pos: Duration, type: String?) {
+        cachedPlaybackState = PlaybackState(soundName, pos, type)
         scope.launch {
             if (type != null) s.putString("last_playback_type", type)
             else s.remove("last_playback_type")
@@ -86,7 +88,7 @@ object SettingsStore {
             if (soundName != null) s.putString("last_playback_sound_name", soundName)
             else s.remove("last_playback_sound_name")
 
-            s.putLong("last_playback_position_ms", posMs)
+            s.putLong("last_playback_position_ms", pos.inWholeMilliseconds)
         }
     }
 }

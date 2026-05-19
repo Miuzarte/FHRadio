@@ -2,6 +2,7 @@ package io.github.miuzarte.fhradio
 
 import androidx.compose.runtime.mutableStateOf
 import io.github.miuzarte.fhradio.model.*
+import kotlin.time.Duration
 import uk.co.caprica.vlcj.factory.MediaPlayerFactory
 import uk.co.caprica.vlcj.player.base.*
 import java.io.File
@@ -80,7 +81,8 @@ actual class AudioPlayer {
         player.media().play(path)
     }
 
-    actual fun play(path: String, beginMs: Long) {
+    actual fun play(path: String, beginAt: Duration) {
+        val beginMs = beginAt.inWholeMilliseconds
         player.controls().stop()
         _state.value = _state.value.copy(currentPath = path, positionMs = beginMs)
         player.media().play(path)
@@ -98,12 +100,12 @@ actual class AudioPlayer {
         return true
     }
 
-    actual fun tryPlay(path: String, beginMs: Long): Boolean {
+    actual fun tryPlay(path: String, beginAt: Duration): Boolean {
         val status = _state.value.status
         if (status == PlaybackStatus.Playing ||
             status == PlaybackStatus.Buffering ||
             status == PlaybackStatus.Opening) return false
-        play(path, beginMs)
+        play(path, beginAt)
         return true
     }
 

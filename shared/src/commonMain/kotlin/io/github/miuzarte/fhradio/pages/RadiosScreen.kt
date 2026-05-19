@@ -2,25 +2,7 @@
 
 package io.github.miuzarte.fhradio.pages
 
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.EnterTransition
-import androidx.compose.animation.ExitTransition
-import androidx.compose.animation.expandHorizontally
-import androidx.compose.animation.expandIn
-import androidx.compose.animation.expandVertically
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.scaleIn
-import androidx.compose.animation.scaleOut
-import androidx.compose.animation.shrinkHorizontally
-import androidx.compose.animation.shrinkOut
-import androidx.compose.animation.shrinkVertically
-import androidx.compose.animation.slideIn
-import androidx.compose.animation.slideInHorizontally
-import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.slideOut
-import androidx.compose.animation.slideOutHorizontally
-import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.*
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -35,33 +17,21 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import io.github.miuzarte.fhradio.AppRuntime
-import io.github.miuzarte.fhradio.AppSettings
-import io.github.miuzarte.fhradio.ImportResult
-import io.github.miuzarte.fhradio.Radio
-import io.github.miuzarte.fhradio.RadioSource
-import io.github.miuzarte.fhradio.importRadio
+import io.github.miuzarte.fhradio.*
 import io.github.miuzarte.fhradio.constants.UiSpacing
 import io.github.miuzarte.fhradio.model.RadioStation
 import io.github.miuzarte.fhradio.model.Sample
-import io.github.miuzarte.fhradio.scaffolds.LazyColumn
-import io.github.miuzarte.fhradio.scaffolds.ReorderableList
-import io.github.miuzarte.fhradio.scaffolds.SectionSmallTitle
-import io.github.miuzarte.fhradio.scaffolds.SuperTextField
-import io.github.miuzarte.fhradio.scaffolds.flowGrid
-import io.github.miuzarte.fhradio.util.fmt
+import io.github.miuzarte.fhradio.scaffolds.*
+import io.github.miuzarte.fhradio.util.format
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.*
 import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.extended.Close
-import top.yukonga.miuix.kmp.icon.extended.Delete
-import top.yukonga.miuix.kmp.icon.extended.Import
-import top.yukonga.miuix.kmp.icon.extended.More
-import top.yukonga.miuix.kmp.icon.extended.Ok
+import top.yukonga.miuix.kmp.icon.extended.*
 import top.yukonga.miuix.kmp.menu.OverlayIconDropdownMenu
 import top.yukonga.miuix.kmp.overlay.OverlayBottomSheet
 import top.yukonga.miuix.kmp.overlay.OverlayDialog
 import top.yukonga.miuix.kmp.theme.MiuixTheme.colorScheme
+import kotlin.time.Duration
 
 @Composable
 fun RadiosScreen(
@@ -390,10 +360,16 @@ private fun InfoLine(label: String, value: String) {
     Text(text = "$label: $value", fontSize = 12.sp, color = colorScheme.onSurface.copy(alpha = 0.6f))
 }
 
-private fun List<Sample>.totalDuration(): String {
-    val totalSec = sumOf { it.durationSec }
-    return if (totalSec >= 60) "${totalSec.toInt() / 60}m${(totalSec % 60).toInt()}s" else "${totalSec.fmt()}s"
+inline fun <T> Iterable<T>.sumOf(selector: (T) -> Duration): Duration {
+    var sum = Duration.ZERO
+    for (element in this) {
+        sum += selector(element)
+    }
+    return sum
 }
+
+private fun List<Sample>.totalDuration() =
+    sumOf { it.duration }.format()
 
 @Composable
 private fun BoxScope.ActiveIcon(visible: Boolean) {

@@ -22,11 +22,13 @@ import androidx.compose.ui.unit.sp
 import io.github.miuzarte.fhradio.AppRuntime
 import io.github.miuzarte.fhradio.model.SampleType
 import io.github.miuzarte.fhradio.Radio
-import io.github.miuzarte.fhradio.Radio.resolvePath
+import io.github.miuzarte.fhradio.resolvePath
 import io.github.miuzarte.fhradio.constants.UiSpacing
 import io.github.miuzarte.fhradio.scaffolds.LazyColumn
 import io.github.miuzarte.fhradio.scaffolds.flowGrid
 import io.github.miuzarte.fhradio.util.fmt
+import io.github.miuzarte.fhradio.util.fmtDurationSec
+import io.github.miuzarte.fhradio.util.format
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.*
@@ -183,7 +185,7 @@ private fun TrackSampleList(
                                     else colorScheme.onSurface,
                             )
                             InfoLine("SoundName", track.soundName)
-                            InfoLine("Duration", "${track.durationSec.fmt()}s")
+                            InfoLine("Duration", track.duration.format())
                             InfoLine("SampleRate", "${track.sampleRate}Hz")
                             InfoLine("BPM", track.bpm.fmt())
                             track.audioFilePath?.let { InfoLine("Path", it) }
@@ -241,7 +243,7 @@ private fun StingerSampleList(
                                     else colorScheme.onSurface,
                             )
                             InfoLine("StartNextTrack", "${stinger.startNextTrack}")
-                            InfoLine("Duration", "${stinger.durationSec.fmt()}s")
+                            InfoLine("Duration", stinger.duration.format())
                             InfoLine("SampleRate", "${stinger.sampleRate}Hz")
                             stinger.audioFilePath?.let { InfoLine("Path", it) }
                         }
@@ -302,7 +304,7 @@ private fun DjSampleList(
                                     if (isPlaying) colorScheme.primary
                                     else colorScheme.onSurface,
                             )
-                            InfoLine("Duration", "${dj.durationSec.fmt()}s")
+                            InfoLine("Duration", dj.duration.format())
                             InfoLine("SampleRate", "${dj.sampleRate}Hz")
                             InfoLine("GameEvent", dj.gameEvent)
                             dj.audioFilePath?.let { InfoLine("Path", it) }

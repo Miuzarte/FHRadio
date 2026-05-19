@@ -1,6 +1,8 @@
 package io.github.miuzarte.fhradio.model
 
 import kotlinx.serialization.Serializable
+import kotlin.time.Duration
+import kotlin.time.Duration.Companion.milliseconds
 
 
 @Serializable
@@ -17,8 +19,8 @@ sealed interface Sample {
     val soundName: String
     val sampleLength: Int
     val sampleRate: Int
-    val durationMs: Long get() = sampleLength * 1000L / sampleRate
-    val durationSec: Double get() = durationMs / 1000.0
+    val durationMs: Long get() = sampleLength * 1000L / (sampleRate)
+    val duration: Duration get() = durationMs.milliseconds
 }
 
 @Serializable

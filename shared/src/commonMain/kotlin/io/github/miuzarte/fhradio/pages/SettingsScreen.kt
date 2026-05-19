@@ -27,6 +27,8 @@ import io.github.miuzarte.fhradio.scaffolds.ReorderableList
 import io.github.miuzarte.fhradio.scaffolds.SectionSmallTitle
 import io.github.miuzarte.fhradio.scaffolds.SuperTextField
 import io.github.miuzarte.fhradio.scaffolds.SuperSlider
+import io.github.miuzarte.fhradio.util.format
+import kotlin.time.Duration
 import kotlinx.coroutines.delay
 import top.yukonga.miuix.kmp.basic.*
 import top.yukonga.miuix.kmp.icon.MiuixIcons
@@ -87,16 +89,6 @@ fun SettingsScreen(
         var showPatternSheet by remember { mutableStateOf(false) }
         var showNodeEditSheet by remember { mutableStateOf(false) }
         var editingNodeIndex by remember { mutableStateOf(-1) }
-
-        // Debug: 在设置页时每秒刷新剩余时间
-        if (BuildKonfig.DEBUG) {
-            LaunchedEffect(Unit) {
-                while (true) {
-                    delay(1000)
-                    Radio.refreshDebugMarkers()
-                }
-            }
-        }
 
         LazyColumn(
             contentPadding = contentPadding,
@@ -370,6 +362,7 @@ fun SettingsScreen(
                             }
                             SwitchPreference(
                                 title = "Stinger 交叉淡出",
+                                summary = "在 Stinger.StartNextTrack 时切歌而不是 Stinger.End",
                                 checked = crossFadeEnabled,
                                 onCheckedChange = {
                                     crossFadeEnabled = it
@@ -404,26 +397,20 @@ fun SettingsScreen(
                             .fillMaxWidth()
                             .padding(UiSpacing.Large),
                     ) {
+                        Radio.syncDebugMarkers()
                         Radio.debugScheduledMarkers.forEach { info ->
-                            fun Long.msFormatDuration(): String {
-                                val timeSec = this / 1000
-                                val min = timeSec / 60
-                                val sec = timeSec % 60
-                                return """${if (min > 0) "${min}m" else ""}${sec}s"""
-                            }
-
                             // TODO: platforms timezone
                             // UTC+8
-                            val localMs = info.fireAtMs + (8 * 3600_000L)
+                            val localMs = info.fireAt.toEpochMilliseconds() + (8 * 3600_000L)
                             val totalSec = (localMs / 1000) % 86400
                             val h = totalSec / 3600
                             val m = (totalSec % 3600) / 60
                             val s = totalSec % 60
                             val clock = "${h}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}"
                             Text(
-                                text = "${info.tag} @ ${info.targetPos} (${info.timeMs.msFormatDuration()}) (-${info.remainingMs.msFormatDuration()}) ($clock)",
+                                text = "${info.tag} @ ${info.targetPos} (${info.total.format()}) (-${info.remain.format()}) ($clock)",
                                 color =
-                                    if (info.remainingMs <= 0) colorScheme.primary
+                                    if (info.remain <= Duration.ZERO) colorScheme.primary
                                     else colorScheme.onSurface,
                             )
                         }

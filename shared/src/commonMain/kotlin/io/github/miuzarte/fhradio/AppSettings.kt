@@ -67,16 +67,12 @@ object AppSettings {
     }
 
     fun saveSettings(settings: RadioSettings) {
+        if (settings.radioMode != radioMode)
+            Radio.buildEngine()
         radioSettings = settings
         radioMode = settings.radioMode
         playMode = settings.playMode
         SettingsStore.saveSettings(settings)
-    }
-
-    fun updateSettings(settings: RadioSettings) {
-        radioSettings = settings
-        radioMode = settings.radioMode
-        playMode = settings.playMode
     }
 
     fun addSource(source: RadioSource, stations: List<RadioStation>) {
