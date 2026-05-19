@@ -1,9 +1,4 @@
 package io.github.miuzarte.fhradio
 
-import platform.UIKit.UIDevice
-
-class IOSPlatform: Platform {
-    override val name: String = UIDevice.currentDevice.systemName() + " " + UIDevice.currentDevice.systemVersion
-}
-
-actual fun getPlatform(): Platform = IOSPlatform()
+actual fun readFileTextOrNull(path: String): String? = null
+actual fun fileExists(path: String): Boolean = false

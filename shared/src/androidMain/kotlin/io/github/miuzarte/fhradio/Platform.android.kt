@@ -1,9 +1,4 @@
 package io.github.miuzarte.fhradio
 
-import android.os.Build
-
-class AndroidPlatform : Platform {
-    override val name: String = "Android ${Build.VERSION.SDK_INT}"
-}
-
-actual fun getPlatform(): Platform = AndroidPlatform()
+actual fun readFileTextOrNull(path: String): String? = null
+actual fun fileExists(path: String): Boolean = false

@@ -1,7 +1,9 @@
 package io.github.miuzarte.fhradio
 
-class JVMPlatform: Platform {
-    override val name: String = "Java ${System.getProperty("java.version")}"
-}
+import java.io.File
 
-actual fun getPlatform(): Platform = JVMPlatform()
+actual fun readFileTextOrNull(path: String): String? = runCatching {
+    File(path).readText()
+}.getOrNull()
+
+actual fun fileExists(path: String): Boolean = File(path).exists()

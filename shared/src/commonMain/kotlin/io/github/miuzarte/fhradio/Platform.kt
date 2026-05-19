@@ -1,7 +1,4 @@
 package io.github.miuzarte.fhradio
 
-interface Platform {
-    val name: String
-}
-
-expect fun getPlatform(): Platform
+expect fun readFileTextOrNull(path: String): String?
+expect fun fileExists(path: String): Boolean
