@@ -40,8 +40,11 @@ object AppRuntime {
     ) {
         snackbarHostState?.let { host ->
             scope.launch {
-                host.showSnackbar(message = message, duration = duration)
-                    .let { onResult?.invoke(it) }
+                host.showSnackbar(
+                    message = message,
+                    duration = duration,
+                    withDismissAction = true,
+                ).let { onResult?.invoke(it) }
             }
         }
     }

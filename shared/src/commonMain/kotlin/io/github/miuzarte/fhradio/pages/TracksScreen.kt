@@ -27,7 +27,6 @@ import io.github.miuzarte.fhradio.constants.UiSpacing
 import io.github.miuzarte.fhradio.scaffolds.LazyColumn
 import io.github.miuzarte.fhradio.scaffolds.flowGrid
 import io.github.miuzarte.fhradio.util.fmt
-import io.github.miuzarte.fhradio.util.fmtDurationSec
 import io.github.miuzarte.fhradio.util.format
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch

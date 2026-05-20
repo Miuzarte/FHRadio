@@ -46,6 +46,7 @@ fun MainScreen() {
     DisposableEffect(Unit) {
         AppRuntime.mainPlayer = AudioPlayer()
         AppRuntime.secondaryPlayer = AudioPlayer()
+        Radio.buildEngine()
 
         val job = AppSettings.restoreFromPaths()
         val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())

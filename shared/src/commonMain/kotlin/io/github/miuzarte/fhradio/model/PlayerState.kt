@@ -7,7 +7,10 @@ data class PlayerState(
     val durationMs: Long,
     val isMuted: Boolean,
     val volume: Int,
-)
+) {
+    val isBusy: Boolean
+        get() = status.isBusy
+}
 
 enum class PlaybackStatus {
     Idle,
@@ -17,5 +20,22 @@ enum class PlaybackStatus {
     Paused,
     Stopped,
     Ended,
-    Error,
+    Error;
+
+    val isBusy: Boolean
+        get() = when (this) {
+            Idle,
+                -> false
+
+            Opening,
+            Buffering,
+            Playing,
+                -> true
+
+            Paused,
+            Stopped,
+            Ended,
+            Error,
+                -> false
+        }
 }

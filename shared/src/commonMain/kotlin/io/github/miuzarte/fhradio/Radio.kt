@@ -25,9 +25,19 @@ import kotlin.time.DurationUnit
 import kotlin.time.Instant
 import kotlin.time.toDuration
 import okio.Path.Companion.toPath
+import top.yukonga.miuix.kmp.basic.SnackbarDuration
 
 internal fun debugDo(block: () -> Unit) {
     if (BuildKonfig.DEBUG) block()
+}
+
+internal fun debugSnack(message: String) {
+    debugDo {
+        AppRuntime.snackbar(
+            message = message,
+            duration = SnackbarDuration.Long,
+        )
+    }
 }
 
 object Radio {
@@ -42,240 +52,148 @@ object Radio {
     internal val selectedStingers get() = selectedStation?.stingers
     internal val selectedDj get() = selectedStation?.djSamples
 
-    internal fun sampleList(type: SampleType): List<Sample>? = when (type) {
-        SampleType.Track -> selectedTracks
-        SampleType.Stinger -> selectedStingers
-        SampleType.DJ -> selectedDj
-    }
+    internal var modeEngine: RadioModeEngine? = null
+        private set
 
+    fun getPlaylist() = modeEngine?.getPlaylist()
+
+    internal fun sampleList(type: SampleType): List<Sample>? =
+        when (type) {
+            SampleType.Track -> selectedTracks
+            SampleType.Stinger -> selectedStingers
+            SampleType.DJ -> selectedDj
+        }
+
+    var pendingTrack: TrackSample? by mutableStateOf(null)
     var currentTrack: TrackSample? by mutableStateOf(null)
     internal lateinit var lastTrack: TrackSample
+    var pendingStinger: StingerSample? by mutableStateOf(null)
     var currentStinger: StingerSample? by mutableStateOf(null)
     internal lateinit var lastStinger: StingerSample
+    var pendingDj: DjSample? by mutableStateOf(null)
     var currentDj: DjSample? by mutableStateOf(null)
     internal lateinit var lastDj: DjSample
 
-    // ===== Engine =====
 
-    internal var modeEngine: RadioModeEngine = RandomEngine()
-        private set
-
-    fun buildEngine() {
-        modeEngine = when (settings.radioMode) {
-            RadioMode.Random -> RandomEngine()
-            RadioMode.Player -> PlayerEngine()
-            RadioMode.Seed -> SeedEngine()
-        }
-        reschedule()
-    }
-
-    // ===== Coroutine scope =====
+    // --- Coroutine scope ---
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
 
-    // ===== Station lifecycle =====
+    // --- Station lifecycle ---
 
-    fun openStation(station: RadioStation, play: Boolean = true) {
+    fun openStation(
+        station: RadioStation,
+        play: Boolean = true,
+    ) {
         closeStation()
         selectedStation = station
+        buildEngine(station)
         AppSettings.saveLastStation(station)
-        if (play) modeEngine.resume()
+        if (play) modeEngine?.getResume(SettingsStore.loadPlaybackState())
     }
 
     fun closeStation() {
         stopPlayback()
+        modeEngine = null
         selectedStation = null
     }
 
-    // ===== Scheduling infrastructure =====
+    private fun buildEngine(station: RadioStation) {
+        modeEngine = when (settings.radioMode) {
+            RadioMode.Random -> RandomEngine(
+                station = station,
+            )
 
-    private data class TaggedJob(
-        val job: Job,
-        val tag: String,
-    )
+            RadioMode.Player -> PlayerEngine(
+                station = station,
+                playMode = settings.playMode,
+                crossLists = crossLists,
+                patternEnabled = settings.patternEnabled,
+                patternNodes = patternNodes,
+            )
 
-    private data class DebugMeta(
-        val targetPos: Int,
-        val time: Duration,
-        val delay: Duration,
-        val scheduledAt: Instant,
-    )
-
-    private val scheduledJobs = mutableListOf<Job>()
-    private val taggedJobs = mutableListOf<TaggedJob>()
-    private val debugMetas = mutableMapOf<String, DebugMeta>()
-
-    data class ScheduledInfo(
-        val tag: String,
-        val targetPos: Int,
-        val total: Duration,
-        val remain: Duration,
-        val fireAt: Instant,
-    )
-
-    var debugScheduledMarkers: List<ScheduledInfo> by mutableStateOf(emptyList())
-        private set
-
-    fun syncDebugMarkers() {
-        val now = Clock.System.now()
-        debugScheduledMarkers = debugMetas.map { (tag, meta) ->
-            val elapsed = now - meta.scheduledAt
-            val remain = (meta.delay - elapsed).coerceAtLeast(Duration.ZERO)
-            ScheduledInfo(tag, meta.targetPos, meta.time, remain, meta.scheduledAt + meta.delay)
+            RadioMode.Seed -> SeedEngine(
+                station = station,
+            )
         }
+        reschedule()
     }
 
-    fun refreshDebugMarkers() {
-        debugDo { syncDebugMarkers() }
+    // private fun releaseEngin() { modeEngine = null }
+
+    // --- Scheduling infrastructure ---
+
+    // 让不同的 Engine 自行派发
+    private fun scheduleMarkers(sample: Sample, beginAt: Duration = Duration.ZERO) {
+        modeEngine?.scheduleModeMarkers(sample, beginAt) ?: return
+        scheduleEndMarkers(sample, beginAt)
     }
 
-    private fun cancelScheduledByTag(tag: String) {
-        val iter = taggedJobs.iterator()
-        while (iter.hasNext()) {
-            val tj = iter.next()
-            if (tj.tag == tag) {
-                tj.job.cancel()
-                scheduledJobs.remove(tj.job)
-                iter.remove()
-            }
-        }
-        debugMetas.remove(tag)
-        syncDebugMarkers()
-        debugDo { AppRuntime.snackbar("取消: $tag") }
-    }
-
-    internal fun cancelAllScheduled() {
-        scheduledJobs.forEach { it.cancel() }
-        scheduledJobs.clear()
-        taggedJobs.clear()
-        debugMetas.clear()
-        syncDebugMarkers()
-        debugDo { AppRuntime.snackbar("取消: 全部") }
-    }
-
-    private fun schedule(tag: String, delay: Duration, block: suspend CoroutineScope.() -> Unit) {
-        val job = if (!delay.isPositive()) {
-            scope.launch(Dispatchers.Default, block = block)
-        } else {
-            scope.launch(Dispatchers.Default) {
-                delay(delay)
-                block()
-            }
-        }
-        scheduledJobs.add(job)
-        taggedJobs.add(TaggedJob(job, tag))
-    }
-
-    internal fun scheduleMarker(
-        tag: String,
-        sample: Sample,
-        targetPos: Int,
-        beginAt: Duration,
-        block: suspend CoroutineScope.() -> Unit,
-    ) {
-        val full = sample.samplesToDuration(targetPos)
-        val delay = full - beginAt
-        val scheduledAt = Clock.System.now()
-        schedule(tag, delay.coerceAtLeast(Duration.ZERO), block)
-        debugMetas[tag] = DebugMeta(targetPos, full, delay, scheduledAt)
-        syncDebugMarkers()
-        debugDo {
-            val d = delay.coerceAtLeast(Duration.ZERO)
-            val totalSec = d.inWholeSeconds
-            val min = totalSec / 60
-            val sec = totalSec % 60
-            val timeStr = """${if (min > 0) "${min}m" else ""}${sec}s"""
-            val note = if (!delay.isPositive()) " 立即" else ""
-            AppRuntime.snackbar("派发: $tag | ${timeStr}后 | @$targetPos$note")
-        }
-    }
-
-    private fun scheduleEndMarkers(sample: Sample, beginAt: Duration) {
+    // 每个 Sample 都有 .End marker, 统一在这里派发
+    private fun scheduleEndMarkers(sample: Sample, beginAt: Duration) =
         when (sample) {
             is TrackSample -> {
                 val tag = if (sample.end > 0) "Track.End" else "Track.SampleLength"
                 val targetPos = if (sample.end > 0) sample.end else sample.sampleLength
-                scheduleMarker(tag, sample, targetPos, beginAt) {
-                    debugDo { AppRuntime.snackbar("$tag @ $targetPos") }
-                    onTrackEnd()
+                Scheduler.scheduleMarker(tag, sample, targetPos, beginAt) {
+                    debugSnack("$tag @ $targetPos")
+                    trackOnEnd()
                 }
             }
 
             is StingerSample -> {
                 val tag = if (sample.end > 0) "Stinger.End" else "Stinger.SampleLength"
                 val targetPos = if (sample.end > 0) sample.end else sample.sampleLength
-                scheduleMarker(tag, sample, targetPos, beginAt) {
-                    debugDo { AppRuntime.snackbar("$tag @ $targetPos") }
-                    onStingerEnd()
+                Scheduler.scheduleMarker(tag, sample, targetPos, beginAt) {
+                    debugSnack("$tag @ $targetPos")
+                    stingerOnEnd()
                 }
             }
 
             is DjSample -> {
-                scheduleMarker("DJ.SampleLength", sample, sample.sampleLength, beginAt) {
-                    debugDo { AppRuntime.snackbar("DJ.SampleLength @ ${sample.sampleLength}") }
-                    onDjEnd()
+                val tag = "DJ.SampleLength"
+                val targetPos = sample.sampleLength
+                Scheduler.scheduleMarker(tag, sample, targetPos, beginAt) {
+                    debugSnack("$tag @ $targetPos")
+                    djOnEnd()
                 }
             }
         }
-    }
 
-    private fun scheduleMarkers(sample: Sample, beginAt: Duration = Duration.ZERO) {
-        modeEngine.scheduleModeMarkers(sample, beginAt)
-        scheduleEndMarkers(sample, beginAt)
-    }
+    // --- Callbacks ---
 
-    // ===== Callbacks =====
+    private fun stingerPlayerIsBusy() = secondaryPlayer.state.isBusy()
 
-    private fun onTrackEnd() {
+    // "Track.End" / "Track.SampleLength"
+    // 处理 currentTrack 播放结束后的收尾
+    private fun trackOnEnd() {
         currentTrack = null
-        if (currentStinger == null && currentDj == null)
-            modeEngine.advance()
     }
 
-    private fun stingerPlayerIsBusy(): Boolean {
-        val s = secondaryPlayer.getState()
-        return s.status == PlaybackStatus.Playing ||
-                s.status == PlaybackStatus.Buffering ||
-                s.status == PlaybackStatus.Opening
+    // "Track.StingerStart"
+    // 根据 pendingStinger 来播放
+    private fun trackOnStingerStart() {
     }
 
-    internal fun onStingerStart() {
-        val stinger = selectedStingers
-            ?.filter { it.resolvePath() != null }
-            ?.randomOrNull()
-            ?: return
-        if (beginSample(stinger, solo = false, useTryPlay = true)) {
-            cancelScheduledByTag("DJStart")
-            cancelScheduledByTag("TrackEnd")
-        }
+    // "Track.DJStart"
+    private fun trackOnDJStart() {
     }
 
-    internal fun onStingerNextTrack() {
-        modeEngine.advance()
+    // "Stinger.StartNextTrack"
+    private fun stingerOnStartNextTrack() {
     }
 
-    internal fun onStingerEnd() {
+    // "Stinger.End" / "Stinger.SampleLength"
+    private fun stingerOnEnd() {
         currentStinger = null
-        val track = modeEngine.nextSample(SampleType.Track)
-        if (track != null) beginSample(track, solo = false, useTryPlay = true)
     }
 
-    internal fun onDjStart() {
-        if (currentTrack == null) return
-        if (stingerPlayerIsBusy()) return
-        val dj = selectedDj
-            ?.filter { it.resolvePath() != null }
-            ?.randomOrNull()
-            ?: return
-        beginSample(dj, solo = false, useTryPlay = true)
-    }
-
-    internal fun onDjEnd() {
+    // "DJ.SampleLength"
+    private fun djOnEnd() {
         currentDj = null
-        modeEngine.advance()
     }
 
-    // ===== Playback control =====
+    // --- Playback control ---
 
     internal var lastPlayedSample: Sample? = null
     private var periodicSaveJob: Job? = null
@@ -287,7 +205,6 @@ object Radio {
     private var djStartedAt: Instant? = null
     private var djBeginAt: Duration = Duration.ZERO
 
-    private var lastRescheduleAt: Instant? = null
 
     fun playRandomFromList(type: SampleType) {
         selectedStation ?: return
@@ -301,7 +218,6 @@ object Radio {
     fun playSample(sample: Sample): Boolean {
         selectedStation ?: return false
         lastPlayedSample = sample
-        modeEngine.onSamplePlayed(sample)
         return beginSample(sample)
     }
 
@@ -365,9 +281,7 @@ object Radio {
             val sec = totalSec % 60
             val timeStr = """${if (min > 0) "${min}m" else ""}${sec}s"""
             val samples = beginAt.inWholeMilliseconds * sample.sampleRate / 1000
-            AppRuntime.snackbar(
-                """${if (useTryPlay) "(try) " else ""}切入 ${sample.type}: $timeStr (${samples})"""
-            )
+            debugSnack("""${if (useTryPlay) "(try) " else ""}切入 ${sample.type}: $timeStr (${samples})""")
         }
 
         scheduleMarkers(sample, beginAt)
@@ -412,24 +326,24 @@ object Radio {
         if (st != null && tr != null) {
             AppSettings.saveLastStation(st)
         }
-        cancelAllScheduled()
+        Scheduler.cancel()
         finishPlayback()
     }
 
     internal fun stopMain() {
         mainPlayer.stop()
-        cancelScheduledByTag("Track.StingerStart")
-        cancelScheduledByTag("Track.DJStart")
-        cancelScheduledByTag("Track.End")
-        cancelScheduledByTag("Track.SampleLength")
+        Scheduler.cancel("Track.StingerStart")
+        Scheduler.cancel("Track.DJStart")
+        Scheduler.cancel("Track.End")
+        Scheduler.cancel("Track.SampleLength")
     }
 
     internal fun stopSecondary() {
         secondaryPlayer.stop()
-        cancelScheduledByTag("Stinger.StartNextTrack")
-        cancelScheduledByTag("Stinger.End")
-        cancelScheduledByTag("Stinger.SampleLength")
-        cancelScheduledByTag("DJ.SampleLength")
+        Scheduler.cancel("Stinger.StartNextTrack")
+        Scheduler.cancel("Stinger.End")
+        Scheduler.cancel("Stinger.SampleLength")
+        Scheduler.cancel("DJ.SampleLength")
     }
 
     private fun finishPlayback() {
@@ -441,7 +355,7 @@ object Radio {
         currentDj = null
     }
 
-    // ===== Position tracking =====
+    // --- Position tracking ---
 
     internal fun currentTrackPos(): Duration =
         trackStartedAt?.let { trackBeginAt + (Clock.System.now() - it) } ?: Duration.ZERO
@@ -452,11 +366,13 @@ object Radio {
     internal fun currentDjPos(): Duration =
         djStartedAt?.let { djBeginAt + (Clock.System.now() - it) } ?: Duration.ZERO
 
+    private var lastRescheduleAt: Instant? = null
+
     fun reschedule() {
         val now = Clock.System.now()
         if (lastRescheduleAt != null && (now - lastRescheduleAt!!) < 300.milliseconds) return
         lastRescheduleAt = now
-        cancelAllScheduled()
+        Scheduler.cancel()
 
         if (trackStartedAt != null) {
             currentTrack?.let { scheduleMarkers(it, currentTrackPos()) }
@@ -469,17 +385,17 @@ object Radio {
         }
     }
 
-    fun resetPatternState() = modeEngine.resetPatternState()
+    fun reset() = modeEngine.reset()
 
-    // ===== Helpers shared by engines =====
+    // --- Helpers shared by engines ---
 
     internal fun playNext(type: SampleType, beginAt: Duration = Duration.ZERO) {
-        val sample = modeEngine.nextSample(type) ?: return
+        val sample = modeEngine.getNext(type) ?: return
         beginSample(sample, beginAt, solo = false)
     }
 
     internal fun playRandom(type: SampleType) {
-        val sample = modeEngine.nextSample(type) ?: return
+        val sample = modeEngine.getNext(type) ?: return
         beginSample(sample, sample.randomBeginAt(), solo = false)
     }
 
@@ -493,7 +409,7 @@ object Radio {
         return sample
     }
 
-    // ===== Utilities =====
+    // --- Utilities ---
 
     private fun Sample.samplesToDuration(pos: Int): Duration =
         (pos * 1000L / sampleRate).toDuration(DurationUnit.MILLISECONDS)
@@ -518,7 +434,7 @@ object Radio {
     }
 
     fun dispose() {
-        cancelAllScheduled()
+        Scheduler.cancel()
     }
 }
 

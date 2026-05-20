@@ -1,6 +1,7 @@
 package io.github.miuzarte.fhradio.pages
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -8,6 +9,8 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.lazy.LazyColumn as ComposeLazyColumn
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
@@ -18,8 +21,12 @@ import io.github.miuzarte.fhradio.AppSettings
 import io.github.miuzarte.fhradio.BuildKonfig
 import io.github.miuzarte.fhradio.PatternNode
 import io.github.miuzarte.fhradio.model.SampleType
+import io.github.miuzarte.fhradio.model.TrackSample
+import io.github.miuzarte.fhradio.model.StingerSample
+import io.github.miuzarte.fhradio.model.DjSample
 import io.github.miuzarte.fhradio.Radio
 import io.github.miuzarte.fhradio.RadioMode
+import io.github.miuzarte.fhradio.Scheduler
 import io.github.miuzarte.fhradio.constants.UiSpacing
 import io.github.miuzarte.fhradio.model.PlayMode
 import io.github.miuzarte.fhradio.scaffolds.LazyColumn
@@ -29,7 +36,6 @@ import io.github.miuzarte.fhradio.scaffolds.SuperTextField
 import io.github.miuzarte.fhradio.scaffolds.SuperSlider
 import io.github.miuzarte.fhradio.util.format
 import kotlin.time.Duration
-import kotlinx.coroutines.delay
 import top.yukonga.miuix.kmp.basic.*
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Delete
@@ -81,13 +87,14 @@ fun SettingsScreen(
                 patternEnabled = patternEnabled,
                 crossFadeEnabled = crossFadeEnabled,
             )
-            AppSettings.saveSettings(s)
+            AppSettings.saveRadioSettings(s)
             AppSettings.saveCrossLists(crossLists)
             Radio.reschedule()
         }
 
         var showPatternSheet by remember { mutableStateOf(false) }
         var showNodeEditSheet by remember { mutableStateOf(false) }
+        var showPlaylistSheet by remember { mutableStateOf(false) }
         var editingNodeIndex by remember { mutableStateOf(-1) }
 
         LazyColumn(
@@ -389,30 +396,44 @@ fun SettingsScreen(
                 }
             }
 
-            if (BuildKonfig.DEBUG) item {
-                SectionSmallTitle("已调度 Marker")
-                Card {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(UiSpacing.Large),
-                    ) {
-                        Radio.syncDebugMarkers()
-                        Radio.debugScheduledMarkers.forEach { info ->
-                            // TODO: platforms timezone
-                            // UTC+8
-                            val localMs = info.fireAt.toEpochMilliseconds() + (8 * 3600_000L)
-                            val totalSec = (localMs / 1000) % 86400
-                            val h = totalSec / 3600
-                            val m = (totalSec % 3600) / 60
-                            val s = totalSec % 60
-                            val clock = "${h}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}"
-                            Text(
-                                text = "${info.tag} @ ${info.targetPos} (${info.total.format()}) (-${info.remain.format()}) ($clock)",
-                                color =
-                                    if (info.remain <= Duration.ZERO) colorScheme.primary
-                                    else colorScheme.onSurface,
-                            )
+            if (BuildKonfig.DEBUG) {
+                item {
+                    SectionSmallTitle("调试")
+                    Card {
+                        ArrowPreference(
+                            title = "查看播放列表",
+                            enabled = isPlayerMode,
+                            onClick = { showPlaylistSheet = true },
+                            holdDownState = showPlaylistSheet,
+                        )
+                    }
+                }
+
+                item {
+                    SectionSmallTitle("已调度 Marker")
+                    Card {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(UiSpacing.Large),
+                        ) {
+                            Radio.syncDebugMarkers()
+                            Scheduler.debugMarkers.forEach { info ->
+                                // TODO: platforms timezone
+                                // UTC+8
+                                val localMs = info.fireAt.toEpochMilliseconds() + (8 * 3600_000L)
+                                val totalSec = (localMs / 1000) % 86400
+                                val h = totalSec / 3600
+                                val m = (totalSec % 3600) / 60
+                                val s = totalSec % 60
+                                val clock = "${h}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}"
+                                Text(
+                                    text = "${info.tag} @ ${info.targetPos} (${info.total.format()}) (-${info.remain.format()}) ($clock)",
+                                    color =
+                                        if (info.remain <= Duration.ZERO) colorScheme.primary
+                                        else colorScheme.onSurface,
+                                )
+                            }
                         }
                     }
                 }
@@ -541,6 +562,60 @@ fun SettingsScreen(
                 }
                 Spacer(Modifier.height(UiSpacing.SheetBottom))
             }
+        }
+
+        val playlistSnapshot = remember(showPlaylistSheet) {
+            if (showPlaylistSheet) Radio.getPlaylist()
+            else null
+        }
+        OverlayBottomSheet(
+            show = showPlaylistSheet,
+            title = "播放列表",
+            defaultWindowInsetsPadding = false,
+            onDismissRequest = { showPlaylistSheet = false },
+        ) {
+            if (playlistSnapshot != null) {
+                val (samples, currentIndex) = playlistSnapshot
+                ComposeLazyColumn(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = UiSpacing.Large),
+                ) {
+                    item { Spacer(Modifier.height(UiSpacing.Medium)) }
+                    itemsIndexed(samples) { index, sample ->
+                        val isCurrent = index == currentIndex
+                        val typeLabel = when (sample) {
+                            is TrackSample -> "Track"
+                            is StingerSample -> "Stinger"
+                            is DjSample -> "DJ"
+                        }
+                        val name = when (sample) {
+                            is TrackSample -> sample.displayName.ifEmpty { sample.soundName }
+                            is StingerSample -> sample.soundName
+                            is DjSample -> sample.soundName.ifEmpty { sample.gameEvent }
+                        }
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .background(
+                                    if (isCurrent) colorScheme.primary.copy(alpha = 0.12f)
+                                    else colorScheme.surface
+                                )
+                                .padding(horizontal = 12.dp, vertical = 8.dp),
+                        ) {
+                            Text(
+                                text = typeLabel,
+                                color = if (isCurrent) colorScheme.primary else colorScheme.onSurface.copy(alpha = 0.6f),
+                                modifier = Modifier.padding(end = 12.dp),
+                            )
+                            Text(
+                                text = name,
+                                color = if (isCurrent) colorScheme.primary else colorScheme.onSurface,
+                            )
+                        }
+                    }
+                    item { Spacer(Modifier.height(UiSpacing.Medium)) }
+                }
+            }
+            Spacer(Modifier.height(UiSpacing.SheetBottom))
         }
     }
 }

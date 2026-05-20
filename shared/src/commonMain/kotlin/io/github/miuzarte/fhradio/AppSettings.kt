@@ -34,7 +34,7 @@ object AppSettings {
                 kotlinx.serialization.builtins.ListSerializer(SampleType.serializer()), list
             )
         )
-        saveSettings(s)
+        saveRadioSettings(s)
         Radio.reschedule()
     }
 
@@ -59,20 +59,21 @@ object AppSettings {
                 nodes
             ),
         )
-        saveSettings(s)
+        saveRadioSettings(s)
         cachedPatternJson = s.patternJson
         cachedPatternNodes = nodes
-        Radio.resetPatternState()
+        Radio.reset()
         Radio.reschedule()
     }
 
-    fun saveSettings(settings: RadioSettings) {
-        if (settings.radioMode != radioMode)
+    fun saveRadioSettings(newRadioSettings: RadioSettings) {
+        val oldRadioSettings = radioSettings
+        radioSettings = newRadioSettings
+        radioMode = newRadioSettings.radioMode
+        playMode = newRadioSettings.playMode
+        if (newRadioSettings.radioMode != oldRadioSettings.radioMode)
             Radio.buildEngine()
-        radioSettings = settings
-        radioMode = settings.radioMode
-        playMode = settings.playMode
-        SettingsStore.saveSettings(settings)
+        SettingsStore.saveSettings(newRadioSettings)
     }
 
     fun addSource(source: RadioSource, stations: List<RadioStation>) {
@@ -141,7 +142,7 @@ object AppSettings {
         val xmlPath = sources.find { src ->
             sourceStations[src.xmlFilePath]?.any { it === station } == true
         }?.xmlFilePath ?: return
-        saveSettings(
+        saveRadioSettings(
             radioSettings.copy(
                 lastStationXmlPath = xmlPath,
                 lastStationName = station.name,

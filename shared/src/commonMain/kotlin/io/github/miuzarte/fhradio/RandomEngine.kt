@@ -1,6 +1,7 @@
 package io.github.miuzarte.fhradio
 
 import io.github.miuzarte.fhradio.model.DjSample
+import io.github.miuzarte.fhradio.model.RadioStation
 import io.github.miuzarte.fhradio.model.Sample
 import io.github.miuzarte.fhradio.model.SampleType
 import io.github.miuzarte.fhradio.model.StingerSample
@@ -8,27 +9,42 @@ import io.github.miuzarte.fhradio.model.TrackSample
 import kotlin.random.Random
 import kotlin.time.Duration
 
-class RandomEngine : RadioModeEngine() {
+class RandomEngine(station: RadioStation) : RadioModeEngine(station) {
     override fun scheduleModeMarkers(sample: Sample, beginAt: Duration) {
         when (sample) {
             is TrackSample -> {
                 if (sample.stingerStart > 0 && Random.nextInt(100) < Radio.settings.stingerChance)
-                    Radio.scheduleMarker("Track.StingerStart", sample, sample.stingerStart, beginAt) {
-                        debugDo { AppRuntime.snackbar("Track.StingerStart @ ${sample.stingerStart}") }
-                        Radio.onStingerStart()
+                    Scheduler.scheduleMarker(
+                        tag = "Track.StingerStart",
+                        sample = sample,
+                        targetPos = sample.stingerStart,
+                        beginAt = beginAt,
+                    ) {
+                        debugSnack("Track.StingerStart @ ${sample.stingerStart}")
+                        Radio.trackOnStingerStart()
                     }
                 if (sample.djStart > 0 && Random.nextInt(100) < Radio.settings.djChance)
-                    Radio.scheduleMarker("Track.DJStart", sample, sample.djStart, beginAt) {
-                        debugDo { AppRuntime.snackbar("Track.DJStart @ ${sample.djStart}") }
+                    Scheduler.scheduleMarker(
+                        tag = "Track.DJStart",
+                        sample = sample,
+                        targetPos = sample.djStart,
+                        beginAt = beginAt,
+                    ) {
+                        debugSnack("Track.DJStart @ ${sample.djStart}")
                         Radio.onDjStart()
                     }
             }
 
             is StingerSample -> {
                 if (sample.startNextTrack > 0)
-                    Radio.scheduleMarker("Stinger.StartNextTrack", sample, sample.startNextTrack, beginAt) {
-                        debugDo { AppRuntime.snackbar("Stinger.StartNextTrack @ ${sample.startNextTrack}") }
-                        Radio.onStingerNextTrack()
+                    Scheduler.scheduleMarker(
+                        tag = "Stinger.StartNextTrack",
+                        sample = sample,
+                        targetPos = sample.startNextTrack,
+                        beginAt = beginAt,
+                    ) {
+                        debugSnack("Stinger.StartNextTrack @ ${sample.startNextTrack}")
+                        Radio.stingerOnStartNextTrack()
                     }
             }
 
@@ -36,7 +52,7 @@ class RandomEngine : RadioModeEngine() {
         }
     }
 
-    override fun resume() {
+    override fun getResume() {
         Radio.playRandom(SampleType.Track)
     }
 
@@ -44,7 +60,11 @@ class RandomEngine : RadioModeEngine() {
         Radio.playNext(SampleType.Track)
     }
 
-    override fun nextSample(type: SampleType, step: Int, exclude: Set<Sample>): Sample? {
+    override fun getNext(type: SampleType, step: Int, exclude: Set<Sample>): Sample? {
         return Radio.randomSample(type, exclude)
+    }
+
+    override fun reset() {
+        // nothing to reset
     }
 }

@@ -1,6 +1,8 @@
 package io.github.miuzarte.fhradio
 
+import io.github.miuzarte.fhradio.model.DjSample
 import io.github.miuzarte.fhradio.model.PlayMode
+import io.github.miuzarte.fhradio.model.RadioStation
 import io.github.miuzarte.fhradio.model.Sample
 import io.github.miuzarte.fhradio.model.SampleType
 import io.github.miuzarte.fhradio.model.StingerSample
@@ -8,165 +10,215 @@ import io.github.miuzarte.fhradio.model.TrackSample
 import kotlin.random.Random
 import kotlin.time.Duration
 
-class PlayerEngine : RadioModeEngine() {
-    private var patternIndex = 0
 
-    override fun resetPatternState() {
-        patternIndex = 0
+class PlayerEngine(
+    station: RadioStation,
+    val playMode: PlayMode, // shuffle / order
+    val crossLists: List<SampleType>,
+    val patternEnabled: Boolean,
+    val patternNodes: List<PatternNode>,
+) : RadioModeEngine(station) {
+
+    private val usePatternMode get() = patternEnabled && patternNodes.isNotEmpty()
+
+    private data class PlaylistKey(
+        val stationName: String,
+        val playMode: PlayMode,
+        val crossLists: List<SampleType>,
+        val patternEnabled: Boolean,
+        val patternNodes: List<PatternNode>,
+    )
+
+    private var playlistBuiltFor: PlaylistKey? = null // 判断列表是否需要重新构建
+    private val playlist = mutableListOf<Sample>() // 构建好的播放列表 (非调试时对用户隐藏)
+    private var playlistIndex = 0 // 播放到的地方
+
+    override fun reset() {
+        // TODO
     }
 
-    override fun onSamplePlayed(sample: Sample) {
-        resetPatternIndex(sample.type)
+    // 构建列表再返回
+    override fun getPlaylist(): Pair<List<Sample>, Int>? {
+        buildPlaylist()
+        return if (playlist.isEmpty()) null
+        else playlist.toList() to playlistIndex
+    }
+
+    // 按需构建播放列表, 默认不强制
+    private fun buildPlaylist(purge: Boolean = false) {
+        val key = PlaylistKey(
+            stationName = station.name,
+            playMode = playMode,
+            crossLists = crossLists,
+            patternEnabled = patternEnabled,
+            patternNodes = patternNodes,
+        )
+        if (key == playlistBuiltFor && !purge) return
+        playlistBuiltFor = key
+
+        // 重新构建
+        // TODO: 实现 LoopPattern
+        playlist.clear()
+        playlistIndex = 0
+
+        val allSamples = crossLists.flatMap { type ->
+            val list = when (type) {
+                SampleType.Track -> station.tracks
+                SampleType.Stinger -> station.stingers
+                SampleType.DJ -> station.djSamples
+            }
+            if (playMode == PlayMode.Order) list
+            else list.shuffled()
+        }.filter { it.resolvePath() != null }
+
+        // TODO: 控制最大连续数
+        val maxContinuousTrack = 0
+        val maxContinuousStinger = 0
+        val maxContinuousDj = 0
+
+        if (playMode == PlayMode.Shuffle) {
+            val pool = allSamples.toMutableList()
+            var lastType: SampleType? = null
+            var runLen = 0
+
+            while (pool.isNotEmpty()) {
+                val candidates =
+                    if (lastType == null) pool
+                    else {
+                        val limit = when (lastType) {
+                            SampleType.Track -> maxContinuousTrack
+                            SampleType.Stinger -> maxContinuousStinger
+                            SampleType.DJ -> maxContinuousDj
+                        }
+                        if (limit in 1..runLen)
+                            pool.filter { it.type != lastType }.ifEmpty { pool }
+                        else pool
+                    }
+                val picked = candidates[Random.nextInt(candidates.size)]
+                pool.remove(picked)
+
+                if (picked.type != lastType) {
+                    lastType = picked.type
+                    runLen = 1
+                } else {
+                    runLen++
+                }
+                playlist.add(picked)
+            }
+        } else {
+            playlist.addAll(allSamples)
+        }
+    }
+
+    private fun nextSampleType(): SampleType? {
+        if (usePatternMode) {
+            // TODO
+        }
+
+        buildPlaylist()
+        if (playlist.isEmpty()) return null
+        return playlist[playlistIndex % playlist.size].type
     }
 
     override fun scheduleModeMarkers(sample: Sample, beginAt: Duration) {
         when (sample) {
-            is TrackSample -> {}
+            is TrackSample -> {
+                when (nextSampleType()) {
+                    SampleType.Stinger -> if (sample.stingerStart > 0) {
+                        Scheduler.scheduleMarker(
+                            tag = "Track.StingerStart",
+                            sample = sample,
+                            targetPos = sample.stingerStart,
+                            beginAt = beginAt,
+                        ) {
+                            debugSnack("Track.StingerStart @ ${sample.stingerStart}")
+                            Radio.playNext(SampleType.Track)
+                        }
+                    }
+
+                    SampleType.DJ -> if (sample.djStart > 0) {
+                        Scheduler.scheduleMarker(
+                            tag = "Track.DJStart",
+                            sample = sample,
+                            targetPos = sample.djStart,
+                            beginAt = beginAt,
+                        ) {
+                            debugSnack("Track.DJStart @ ${sample.djStart}")
+                            Radio.playNext(SampleType.Track)
+                        }
+                    }
+
+                    else -> {}
+                }
+            }
+
             is StingerSample -> {
-                if (sample.startNextTrack > 0 && Radio.settings.crossFadeEnabled)
-                    Radio.scheduleMarker("Stinger.StartNextTrack", sample, sample.startNextTrack, beginAt) {
-                        debugDo { AppRuntime.snackbar("Stinger.StartNextTrack @ ${sample.startNextTrack}") }
-                        Radio.onStingerNextTrack()
+                if (sample.startNextTrack > 0 && Radio.settings.crossFadeEnabled && nextSampleType() == SampleType.Track)
+                    Scheduler.scheduleMarker(
+                        tag = "Stinger.StartNextTrack",
+                        sample = sample,
+                        targetPos = sample.startNextTrack,
+                        beginAt = beginAt,
+                    ) {
+                        debugSnack("Stinger.StartNextTrack @ ${sample.startNextTrack}")
+                        Radio.playNext(SampleType.Track)
                     }
             }
 
-            is io.github.miuzarte.fhradio.model.DjSample -> {}
+            is DjSample -> {}
         }
     }
 
-    override fun resume() {
-        val pbState = SettingsStore.loadPlaybackState()
-        val name = pbState.soundName
-        val pos = pbState.position
-        val sampleType = when (pbState.type) {
+    override fun getResume(playbackState: SettingsStore.PlaybackState): PlayItem? {
+        val name = playbackState.soundName
+        val pos = playbackState.position
+        val sampleType = when (playbackState.type) {
             "Track" -> SampleType.Track
             "Stinger" -> SampleType.Stinger
             "DJ" -> SampleType.DJ
-            else -> return
+            else -> return null
         }
 
+        // 有名字, 找出来播放
         if (name != null) {
-            val resumedOk = when (sampleType) {
-                SampleType.Track -> Radio.selectedTracks?.find { it.soundName == name }
-                    ?.let { Radio.beginSample(it, pos) }
-                SampleType.Stinger -> Radio.selectedStingers?.find { it.soundName == name }
-                    ?.let { Radio.beginSample(it, pos) }
-                SampleType.DJ -> Radio.selectedDj?.find { it.soundName == name }
-                    ?.let { Radio.beginSample(it, pos) }
+            val list = when (sampleType) {
+                SampleType.Track -> station.tracks
+                SampleType.Stinger -> station.stingers
+                SampleType.DJ -> station.djSamples
             }
-            if (resumedOk == true) return
+            list.find { it.soundName == name }
+                ?.let {
+                    return PlayItem(
+                        sample = it,
+                        beginAt = pos,
+                    )
+                }
         }
 
-        when (Radio.settings.playMode) {
-            PlayMode.Shuffle -> Radio.playNext(sampleType)
-            PlayMode.Order -> {
-                val list = Radio.selectedTracks ?: return
-                if (list.isNotEmpty()) Radio.beginSample(list.first())
-            }
-        }
+        // 构造播放列表后给第一首
+        buildPlaylist()
+        return PlayItem(sample = playlist.first())
     }
 
-    override fun advance() {
+    override fun getNext(type: SampleType, step: Int, exclude: Set<Sample>): PlayItem? {
         if (Radio.settings.patternEnabled) {
-            Radio.patternNodes.takeIf { it.isNotEmpty() }
-                ?.let { advanceByPattern(it) }
-                ?: Radio.playNext(SampleType.Track)
-        } else {
-            Radio.crossLists.takeIf { it.isNotEmpty() }
-                ?.let { advanceByCrossList(it) }
-                ?: Radio.playNext(SampleType.Track)
-        }
-    }
-
-    private fun advanceByPattern(nodes: List<PatternNode>) {
-        Radio.selectedStation ?: return
-        var attempt = 0
-        while (attempt < nodes.size) {
-            patternIndex %= nodes.size
-            val node = nodes[patternIndex]
-            patternIndex++
-            if (node.probability < 100 && Random.nextInt(100) >= node.probability) {
-                attempt++
-                continue
-            }
-            if (playNode(node)) return
-            attempt++
-        }
-        Radio.playNext(SampleType.Track)
-    }
-
-    private fun advanceByCrossList(crossLists: List<SampleType>) {
-        Radio.selectedStation ?: return
-        val lastSample = Radio.lastPlayedSample
-        val orderMode = Radio.settings.playMode == PlayMode.Order
-
-        if (orderMode && lastSample != null) {
-            val sample = nextSample(lastSample.type)
-            if (sample != null) {
-                Radio.beginSample(sample)
-                return
-            }
+            return when (Radio.settings.playMode) {
+                PlayMode.Shuffle -> Radio.randomSample(type, exclude)
+                PlayMode.Order -> {
+                    val list = Radio.sampleList(type) ?: return null
+                    val idx = Radio.lastPlayedSample
+                        ?.takeIf { it.type == type }
+                        ?.let { list.indexOf(it) }
+                        ?: -1
+                    if (idx >= 0) list[(idx + step) % list.size]
+                    else list.first()
+                }
+            }?.let { PlayItem(sample = it) }
         }
 
-        val currentIdx = crossLists.indexOf(lastSample?.type ?: crossLists.first())
-        val nextType = if (currentIdx >= 0) crossLists[(currentIdx + 1) % crossLists.size] else crossLists.first()
-        val list = Radio.sampleList(nextType)?.filter { it.resolvePath() != null }
-        if (list.isNullOrEmpty()) {
-            Radio.playNext(nextType)
-            return
-        }
-        val sample = nextSample(nextType)
-        if (sample != null) Radio.beginSample(sample)
-        else Radio.playNext(nextType)
-    }
-
-    override fun nextSample(type: SampleType, step: Int, exclude: Set<Sample>): Sample? {
-        return when (Radio.settings.playMode) {
-            PlayMode.Shuffle -> {
-                Radio.randomSample(type, exclude)
-            }
-
-            PlayMode.Order -> {
-                val list = Radio.sampleList(type) ?: return null
-                val idx = Radio.lastPlayedSample
-                    ?.takeIf { it.type == type }
-                    ?.let { list.indexOf(it) }
-                    ?: -1
-                if (idx >= 0) list[(idx + step) % list.size]
-                else list.first()
-            }
-        }
-    }
-
-    private fun playNode(node: PatternNode): Boolean {
-        Radio.selectedStation ?: return false
-        val type = node.type
-        val list = Radio.sampleList(type)?.filter { it.resolvePath() != null }
-        if (list.isNullOrEmpty()) return false
-
-        val lastOfType = when (type) {
-            SampleType.Track -> Radio.lastTrack
-            SampleType.Stinger -> Radio.lastStinger
-            SampleType.DJ -> Radio.lastDj
-        }
-        val orderMode = Radio.settings.playMode == PlayMode.Order
-        val sample = if (orderMode) {
-            val idx = lastOfType?.let { list.indexOf(it) }?.takeIf { it >= 0 } ?: -1
-            if (idx >= 0) list[(idx + node.step) % list.size] else list.first()
-        } else {
-            list[Random.nextInt(list.size)]
-        }
-        Radio.stopMain()
-        Radio.stopSecondary()
-        return Radio.beginSample(sample, solo = false)
-    }
-
-    private fun resetPatternIndex(type: SampleType) {
-        val nodes = Radio.patternNodes.takeIf { it.isNotEmpty() } ?: run {
-            patternIndex = 0
-            return
-        }
-        val found = nodes.indexOfFirst { it.type == type }
-        patternIndex = if (found >= 0) (found + 1) % nodes.size else 0
+        buildPlaylist()
+        if (playlist.isEmpty()) return null
+        if (playlistIndex >= playlist.size) playlistIndex = 0
+        return PlayItem(sample = playlist[playlistIndex++])
     }
 }

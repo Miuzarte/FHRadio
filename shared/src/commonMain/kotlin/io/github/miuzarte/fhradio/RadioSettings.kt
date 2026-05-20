@@ -2,7 +2,11 @@ package io.github.miuzarte.fhradio
 
 import io.github.miuzarte.fhradio.model.PlayMode
 
-enum class RadioMode { Random, Seed, Player }
+enum class RadioMode {
+    Random,
+    Seed,
+    Player,
+}
 
 data class RadioSettings(
     val radioMode: RadioMode = RadioMode.Random,

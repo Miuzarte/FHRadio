@@ -1,6 +1,8 @@
 package io.github.miuzarte.fhradio
 
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import io.github.miuzarte.fhradio.model.*
 import kotlin.time.Duration
 import uk.co.caprica.vlcj.factory.MediaPlayerFactory
@@ -11,17 +13,6 @@ actual class AudioPlayer {
 
     private val factory: MediaPlayerFactory
     private val player: MediaPlayer
-
-    private val _state = mutableStateOf(
-        PlayerState(
-            status = PlaybackStatus.Idle,
-            currentPath = null,
-            positionMs = 0L,
-            durationMs = 0L,
-            isMuted = false,
-            volume = 100,
-        )
-    )
 
     init {
         val vlcPath = resolveVlcPath()
@@ -38,81 +29,84 @@ actual class AudioPlayer {
 
         player.events().addMediaPlayerEventListener(object : MediaPlayerEventAdapter() {
             override fun playing(mediaPlayer: MediaPlayer) {
-                _state.value = _state.value.copy(status = PlaybackStatus.Playing)
+                state = state.copy(status = PlaybackStatus.Playing)
             }
+
             override fun paused(mediaPlayer: MediaPlayer) {
-                _state.value = _state.value.copy(status = PlaybackStatus.Paused)
+                state = state.copy(status = PlaybackStatus.Paused)
             }
+
             override fun stopped(mediaPlayer: MediaPlayer) {
-                _state.value = _state.value.copy(status = PlaybackStatus.Stopped, currentPath = null, durationMs = 0)
+                state = state.copy(status = PlaybackStatus.Stopped, currentPath = null, durationMs = 0)
             }
+
             override fun finished(mediaPlayer: MediaPlayer) {
-                _state.value = _state.value.copy(status = PlaybackStatus.Ended, currentPath = null, durationMs = 0)
+                state = state.copy(status = PlaybackStatus.Ended, currentPath = null, durationMs = 0)
             }
+
             override fun error(mediaPlayer: MediaPlayer) {
-                _state.value = _state.value.copy(status = PlaybackStatus.Error, currentPath = null, durationMs = 0)
+                state = state.copy(status = PlaybackStatus.Error, currentPath = null, durationMs = 0)
             }
+
             override fun opening(mediaPlayer: MediaPlayer) {
-                _state.value = _state.value.copy(status = PlaybackStatus.Opening)
+                state = state.copy(status = PlaybackStatus.Opening)
             }
+
             override fun buffering(mediaPlayer: MediaPlayer, newCache: Float) {
-                _state.value = _state.value.copy(status = PlaybackStatus.Buffering)
+                state = state.copy(status = PlaybackStatus.Buffering)
             }
+
             override fun timeChanged(mediaPlayer: MediaPlayer, newTime: Long) {
-                _state.value = _state.value.copy(positionMs = newTime)
+                state = state.copy(positionMs = newTime)
             }
+
             override fun lengthChanged(mediaPlayer: MediaPlayer, newLength: Long) {
-                _state.value = _state.value.copy(durationMs = newLength)
+                state = state.copy(durationMs = newLength)
             }
+
             override fun muted(mediaPlayer: MediaPlayer, muted: Boolean) {
-                _state.value = _state.value.copy(isMuted = muted)
+                state = state.copy(isMuted = muted)
             }
+
             override fun volumeChanged(mediaPlayer: MediaPlayer, volume: Float) {
-                _state.value = _state.value.copy(volume = volume.toInt())
+                state = state.copy(volume = volume.toInt())
             }
         })
     }
 
-    actual fun getState(): PlayerState = _state.value
-
-    actual fun play(path: String) {
-        player.controls().stop()
-        _state.value = _state.value.copy(currentPath = path, positionMs = 0)
-        player.media().play(path)
-    }
+    actual var state by mutableStateOf(
+        PlayerState(
+            status = PlaybackStatus.Idle,
+            currentPath = null,
+            positionMs = 0L,
+            durationMs = 0L,
+            isMuted = false,
+            volume = 100,
+        )
+    )
+        private set
 
     actual fun play(path: String, beginAt: Duration) {
         val beginMs = beginAt.inWholeMilliseconds
         player.controls().stop()
-        _state.value = _state.value.copy(currentPath = path, positionMs = beginMs)
+        state = state.copy(currentPath = path, positionMs = beginMs)
         player.media().play(path)
         if (beginMs > 0) {
             player.controls().setTime(beginMs)
         }
     }
 
-    actual fun tryPlay(path: String): Boolean {
-        val status = _state.value.status
-        if (status == PlaybackStatus.Playing ||
-            status == PlaybackStatus.Buffering ||
-            status == PlaybackStatus.Opening) return false
-        play(path)
-        return true
-    }
-
     actual fun tryPlay(path: String, beginAt: Duration): Boolean {
-        val status = _state.value.status
-        if (status == PlaybackStatus.Playing ||
-            status == PlaybackStatus.Buffering ||
-            status == PlaybackStatus.Opening) return false
+        if (state.isBusy) return false
         play(path, beginAt)
         return true
     }
 
     actual fun stop() {
         player.controls().stop()
-        _state.value = _state.value.copy(currentPath = null, positionMs = 0)
+        state = state.copy(currentPath = null, positionMs = 0)
     }
+
     actual fun pause() = player.controls().setPause(true)
     actual fun resume() = player.controls().setPause(false)
     actual fun dispose() {

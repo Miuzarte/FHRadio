@@ -14,16 +14,8 @@ fun Double.fmt(): String {
     return "${r / 10}.${r % 10}"
 }
 
-fun Double.fmtDurationSec(): String {
-    val inMs = (this * 1000).toInt()
-    val inSec = this.toInt()
-    val min = inSec / 60
-    val sec = inSec % 60
-    return """${if (min > 0) "${min}m" else ""}${sec}s"""
-}
-
-private fun Long.pad2(): String =
-    toString().padStart(2, '0')
+private fun Long.pad(length: Int = 0): String =
+    toString().padStart(length, '0')
 
 fun Duration.format(): String {
     val totalMillis = inWholeMilliseconds
@@ -33,8 +25,8 @@ fun Duration.format(): String {
     val millis = (totalMillis % 1_000) / 10
 
     return if (minutes > 0) {
-        "$minutes:${seconds.pad2()}.${millis.pad2()}"
+        "$minutes:${seconds.pad(2)}.${millis.pad(3)}"
     } else {
-        "$seconds.${millis.pad2()}"
+        "$seconds.${millis.pad(3)}"
     }
 }
