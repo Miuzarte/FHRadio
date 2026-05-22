@@ -1,6 +1,5 @@
-package io.github.miuzarte.fhradio
+package io.github.miuzarte.fhradio.model
 
-import io.github.miuzarte.fhradio.model.SampleType
 import kotlinx.serialization.Serializable
 
 @Serializable

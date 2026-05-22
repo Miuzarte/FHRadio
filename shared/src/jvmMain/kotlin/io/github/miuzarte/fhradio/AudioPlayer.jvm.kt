@@ -3,11 +3,15 @@ package io.github.miuzarte.fhradio
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
-import io.github.miuzarte.fhradio.model.*
-import kotlin.time.Duration
+import io.github.miuzarte.fhradio.model.PlaybackStatus
+import io.github.miuzarte.fhradio.model.PlayerState
+import okio.Path.Companion.toPath
 import uk.co.caprica.vlcj.factory.MediaPlayerFactory
-import uk.co.caprica.vlcj.player.base.*
+import uk.co.caprica.vlcj.player.base.MediaPlayer
+import uk.co.caprica.vlcj.player.base.MediaPlayerEventAdapter
 import java.io.File
+import kotlin.time.Duration
+import kotlin.time.Duration.Companion.milliseconds
 
 actual class AudioPlayer {
 
@@ -16,14 +20,14 @@ actual class AudioPlayer {
 
     init {
         val vlcPath = resolveVlcPath()
-            ?: error("VLC 3.x not found. Put it in desktopApp\\vlc-3.0.23\\ or install to C:\\Program Files\\VideoLAN\\VLC")
+            ?: error("VLC 3.x not found. Put it in desktopApp/vlc-3.0.23/ or install to C:/Program Files/VideoLAN/VLC")
         System.setProperty("jna.library.path", vlcPath)
         factory = MediaPlayerFactory(
             "--no-video",
             "--intf=dummy",
             "--verbose=0",
             "--no-stats",
-            "--no-media-library"
+            "--no-media-library",
         )
         player = factory.mediaPlayers().newMediaPlayer()
 
@@ -37,15 +41,15 @@ actual class AudioPlayer {
             }
 
             override fun stopped(mediaPlayer: MediaPlayer) {
-                state = state.copy(status = PlaybackStatus.Stopped, currentPath = null, durationMs = 0)
+                state = state.copy(status = PlaybackStatus.Stopped, currentPath = null, duration = Duration.ZERO)
             }
 
             override fun finished(mediaPlayer: MediaPlayer) {
-                state = state.copy(status = PlaybackStatus.Ended, currentPath = null, durationMs = 0)
+                state = state.copy(status = PlaybackStatus.Ended, currentPath = null, duration = Duration.ZERO)
             }
 
             override fun error(mediaPlayer: MediaPlayer) {
-                state = state.copy(status = PlaybackStatus.Error, currentPath = null, durationMs = 0)
+                state = state.copy(status = PlaybackStatus.Error, currentPath = null, duration = Duration.ZERO)
             }
 
             override fun opening(mediaPlayer: MediaPlayer) {
@@ -57,11 +61,11 @@ actual class AudioPlayer {
             }
 
             override fun timeChanged(mediaPlayer: MediaPlayer, newTime: Long) {
-                state = state.copy(positionMs = newTime)
+                state = state.copy(position = newTime.milliseconds)
             }
 
             override fun lengthChanged(mediaPlayer: MediaPlayer, newLength: Long) {
-                state = state.copy(durationMs = newLength)
+                state = state.copy(duration = newLength.milliseconds)
             }
 
             override fun muted(mediaPlayer: MediaPlayer, muted: Boolean) {
@@ -78,8 +82,8 @@ actual class AudioPlayer {
         PlayerState(
             status = PlaybackStatus.Idle,
             currentPath = null,
-            positionMs = 0L,
-            durationMs = 0L,
+            position = Duration.ZERO,
+            duration = Duration.ZERO,
             isMuted = false,
             volume = 100,
         )
@@ -89,7 +93,7 @@ actual class AudioPlayer {
     actual fun play(path: String, beginAt: Duration) {
         val beginMs = beginAt.inWholeMilliseconds
         player.controls().stop()
-        state = state.copy(currentPath = path, positionMs = beginMs)
+        state = state.copy(currentPath = path, position = beginAt)
         player.media().play(path)
         if (beginMs > 0) {
             player.controls().setTime(beginMs)
@@ -104,7 +108,7 @@ actual class AudioPlayer {
 
     actual fun stop() {
         player.controls().stop()
-        state = state.copy(currentPath = null, positionMs = 0)
+        state = state.copy(currentPath = null, position = Duration.ZERO)
     }
 
     actual fun pause() = player.controls().setPause(true)
@@ -118,11 +122,12 @@ actual class AudioPlayer {
 
     private fun resolveVlcPath(): String? {
         val candidates = listOf(
-            "desktopApp\\vlc-3.0.23",
-            "B:\\Git\\FHRadio\\desktopApp\\vlc-3.0.23",
-            "C:\\Program Files\\VideoLAN\\VLC",
-            "C:\\Program Files (x86)\\VideoLAN\\VLC",
-        )
+            "".toPath() / "desktopApp" / "vlc-3.0.23",
+            // B:\Git\FHRadio\desktopApp\vlc-3.0.23
+            "B:".toPath() / "Git" / "FHRadio" / "desktopApp" / "vlc-3.0.23",
+            "C:".toPath() / "Program Files" / "VideoLAN" / "VLC",
+            "C:".toPath() / "Program Files (x86)" / "VideoLAN" / "VLC",
+        ).map { it.toString() }
         for (dir in candidates) {
             if (File(dir, "libvlc.dll").exists()) return dir
         }

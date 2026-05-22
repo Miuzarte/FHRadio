@@ -1,15 +1,7 @@
 package io.github.miuzarte.fhradio.pages
 
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.lazy.LazyColumn as ComposeLazyColumn
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.*
@@ -19,23 +11,13 @@ import androidx.compose.ui.unit.dp
 import io.github.miuzarte.fhradio.AppRuntime
 import io.github.miuzarte.fhradio.AppSettings
 import io.github.miuzarte.fhradio.BuildKonfig
-import io.github.miuzarte.fhradio.PatternNode
-import io.github.miuzarte.fhradio.model.SampleType
-import io.github.miuzarte.fhradio.model.TrackSample
-import io.github.miuzarte.fhradio.model.StingerSample
-import io.github.miuzarte.fhradio.model.DjSample
 import io.github.miuzarte.fhradio.Radio
-import io.github.miuzarte.fhradio.RadioMode
-import io.github.miuzarte.fhradio.Scheduler
 import io.github.miuzarte.fhradio.constants.UiSpacing
+import io.github.miuzarte.fhradio.model.PatternNode
 import io.github.miuzarte.fhradio.model.PlayMode
-import io.github.miuzarte.fhradio.scaffolds.LazyColumn
-import io.github.miuzarte.fhradio.scaffolds.ReorderableList
-import io.github.miuzarte.fhradio.scaffolds.SectionSmallTitle
-import io.github.miuzarte.fhradio.scaffolds.SuperTextField
-import io.github.miuzarte.fhradio.scaffolds.SuperSlider
-import io.github.miuzarte.fhradio.util.format
-import kotlin.time.Duration
+import io.github.miuzarte.fhradio.model.RadioMode
+import io.github.miuzarte.fhradio.model.SampleType
+import io.github.miuzarte.fhradio.scaffolds.*
 import top.yukonga.miuix.kmp.basic.*
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Delete
@@ -44,6 +26,7 @@ import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.preference.OverlayDropdownPreference
 import top.yukonga.miuix.kmp.preference.SwitchPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme.colorScheme
+import kotlin.math.roundToInt
 
 @Composable
 fun SettingsScreen(
@@ -66,30 +49,34 @@ fun SettingsScreen(
         val isSeedMode = remember(mode) { mode == RadioMode.Seed }
         val isPlayerMode = remember(mode) { mode == RadioMode.Player }
 
-        var stingerChance by remember { mutableStateOf(AppSettings.radioSettings.stingerChance.toFloat()) }
-        var djChance by remember { mutableStateOf(AppSettings.radioSettings.djChance.toFloat()) }
-        // var playlistType by remember { mutableStateOf(AppSettings.radioSettings.playListType) }
-        var playMode by remember { mutableStateOf(AppSettings.playMode) }
-        var autoResume by remember { mutableStateOf(AppSettings.radioSettings.autoResume) }
-        var patternEnabled by remember { mutableStateOf(AppSettings.radioSettings.patternEnabled) }
-        var patternNodes by remember { mutableStateOf(AppSettings.loadPatternNodes().toMutableList()) }
-        var crossLists by remember { mutableStateOf(AppSettings.crossLists.toMutableList()) }
-        var crossFadeEnabled by remember { mutableStateOf(AppSettings.radioSettings.crossFadeEnabled) }
+        val playMode by remember(AppSettings.playMode) {
+            mutableStateOf(AppSettings.playMode)
+        }
 
-        fun saveSettings() {
-            val s = AppSettings.radioSettings.copy(
-                stingerChance = stingerChance.toInt(),
-                djChance = djChance.toInt(),
-                // playListType = playlistType,
-                playMode = playMode,
-                radioMode = AppSettings.radioMode,
-                autoResume = autoResume,
-                patternEnabled = patternEnabled,
-                crossFadeEnabled = crossFadeEnabled,
-            )
-            AppSettings.saveRadioSettings(s)
-            AppSettings.saveCrossLists(crossLists)
-            Radio.reschedule()
+        var stingerProbability by remember(AppSettings.stingerProbability) {
+            mutableStateOf(AppSettings.stingerProbability)
+        }
+        var djProbability by remember(AppSettings.djProbability) {
+            mutableStateOf(AppSettings.djProbability)
+        }
+
+        val crossLists by remember(AppSettings.crossLists) {
+            mutableStateOf(AppSettings.crossLists)
+        }
+
+        val patternEnabled by remember(AppSettings.patternEnabled) {
+            mutableStateOf(AppSettings.patternEnabled)
+        }
+        val patternNodes by remember(AppSettings.patternNodes) {
+            mutableStateOf(AppSettings.patternNodes)
+        }
+
+        val crossFadeEnabled by remember(AppSettings.crossFadeEnabled) {
+            mutableStateOf(AppSettings.crossFadeEnabled)
+        }
+
+        val autoResume by remember(AppSettings.autoResume) {
+            mutableStateOf(AppSettings.autoResume)
         }
 
         var showPatternSheet by remember { mutableStateOf(false) }
@@ -117,7 +104,6 @@ fun SettingsScreen(
                             }
                         }
                         AppSettings.radioMode = RadioMode.entries[it]
-                        saveSettings()
                     },
                 )
                 Card {
@@ -142,84 +128,28 @@ fun SettingsScreen(
                     // 完全随机
                     AnimatedVisibility(isRandomMode) {
                         Column {
-                            /*
-                            // 播放列表
-                            OverlayDropdownPreference(
-                                title = "播放列表",
-                                entry = DropdownEntry(
-                                    items = listOf(
-                                        DropdownItem(
-                                            text = "Track",
-                                            selected = playlistType == PlayListType.Track,
-                                            onClick = {
-                                                playlistType = PlayListType.Track
-                                                saveSettings()
-                                            }
-                                        ),
-                                        DropdownItem(
-                                            text = "DJ",
-                                            selected = playlistType == PlayListType.DJ,
-                                            onClick = {
-                                                playlistType = PlayListType.DJ
-                                                saveSettings()
-                                            }
-                                        ),
-                                        DropdownItem(
-                                            text = "Stinger",
-                                            selected = playlistType == PlayListType.Stinger,
-                                            onClick = {
-                                                playlistType = PlayListType.Stinger
-                                                saveSettings()
-                                            }
-                                        ),
-                                        DropdownItem(
-                                            text = "FreeRoam",
-                                            selected = playlistType == PlayListType.FreeRoam,
-                                            onClick = {
-                                                playlistType = PlayListType.FreeRoam
-                                                saveSettings()
-                                            }
-                                        ),
-                                        DropdownItem(
-                                            text = "Event",
-                                            selected = playlistType == PlayListType.Event,
-                                            onClick = {
-                                                playlistType = PlayListType.Event
-                                                saveSettings()
-                                            }
-                                        ),
-                                        DropdownItem(
-                                            text = "ShortStinger",
-                                            selected = playlistType == PlayListType.ShortStinger,
-                                            onClick = {
-                                                playlistType = PlayListType.ShortStinger
-                                                saveSettings()
-                                            }
-                                        ),
-                                    )
-                                ),
-                            )
-                             */
                             // Stinger 概率
                             SuperSlider(
                                 title = "Stinger 概率",
                                 summary = "电台标识音插入概率",
-                                value = stingerChance,
+                                value = stingerProbability.toFloat(),
                                 onValueChange = {
-                                    stingerChance = it
-                                    saveSettings()
+                                    stingerProbability = it.roundToInt()
+                                },
+                                onValueChangeFinished = {
+                                    AppSettings.stingerProbability = stingerProbability
                                 },
                                 valueRange = 0f..100f,
                                 steps = 100,
                                 unit = "%",
                                 displayFormatter = { "${it.toInt()}" },
-                                inputInitialValue = "${stingerChance.toInt()}",
+                                inputInitialValue = "$stingerProbability",
                                 inputFilter = { it.filter(Char::isDigit) },
                                 inputValueRange = 0f..100f,
                                 onInputConfirm = { input ->
                                     input.toIntOrNull()?.let {
-                                        stingerChance = it.coerceIn(0, 100).toFloat()
-                                        saveSettings()
+                                        stingerProbability = it.coerceIn(0, 100)
+                                        AppSettings.stingerProbability = stingerProbability
                                     }
                                 },
                             )
@@ -227,23 +157,24 @@ fun SettingsScreen(
                             SuperSlider(
                                 title = "DJ 概率",
                                 summary = "DJ 语音插入概率",
-                                value = djChance,
+                                value = djProbability.toFloat(),
                                 onValueChange = {
-                                    djChance = it
-                                    saveSettings()
+                                    djProbability = it.roundToInt()
+                                },
+                                onValueChangeFinished = {
+                                    AppSettings.djProbability = djProbability
                                 },
                                 valueRange = 0f..100f,
                                 steps = 100,
                                 unit = "%",
                                 displayFormatter = { "${it.toInt()}" },
-                                inputInitialValue = "${djChance.toInt()}",
+                                inputInitialValue = "$djProbability",
                                 inputFilter = { it.filter(Char::isDigit) },
                                 inputValueRange = 0f..100f,
                                 onInputConfirm = { input ->
                                     input.toIntOrNull()?.let {
-                                        val v = it.coerceIn(0, 100)
-                                        djChance = v.toFloat()
-                                        saveSettings()
+                                        djProbability = it.coerceIn(0, 100)
+                                        AppSettings.djProbability = djProbability
                                     }
                                 },
                             )
@@ -265,16 +196,14 @@ fun SettingsScreen(
                                             text = "随机播放",
                                             selected = playMode == PlayMode.Shuffle,
                                             onClick = {
-                                                playMode = PlayMode.Shuffle
-                                                saveSettings()
+                                                AppSettings.playMode = PlayMode.Shuffle
                                             }
                                         ),
                                         DropdownItem(
                                             text = "顺序播放",
                                             selected = playMode == PlayMode.Order,
                                             onClick = {
-                                                playMode = PlayMode.Order
-                                                saveSettings()
+                                                AppSettings.playMode = PlayMode.Order
                                             }
                                         )
                                     )
@@ -293,14 +222,9 @@ fun SettingsScreen(
                                                     selected = SampleType.Track in crossLists,
                                                     onClick = {
                                                         if (SampleType.Track in crossLists && crossLists.size > 1)
-                                                            crossLists = mutableListOf<SampleType>().apply {
-                                                                addAll(crossLists - SampleType.Track)
-                                                            }
+                                                            AppSettings.crossLists -= SampleType.Track
                                                         else if (SampleType.Track !in crossLists)
-                                                            crossLists = mutableListOf<SampleType>().apply {
-                                                                addAll(crossLists + SampleType.Track)
-                                                            }
-                                                        saveSettings()
+                                                            AppSettings.crossLists += SampleType.Track
                                                     }
                                                 ),
                                             )
@@ -312,14 +236,9 @@ fun SettingsScreen(
                                                     selected = SampleType.Stinger in crossLists,
                                                     onClick = {
                                                         if (SampleType.Stinger in crossLists && crossLists.size > 1)
-                                                            crossLists = mutableListOf<SampleType>().apply {
-                                                                addAll(crossLists - SampleType.Stinger)
-                                                            }
+                                                            AppSettings.crossLists -= SampleType.Stinger
                                                         else if (SampleType.Stinger !in crossLists)
-                                                            crossLists = mutableListOf<SampleType>().apply {
-                                                                addAll(crossLists + SampleType.Stinger)
-                                                            }
-                                                        saveSettings()
+                                                            AppSettings.crossLists += SampleType.Stinger
                                                     }
                                                 ),
                                             )
@@ -331,14 +250,9 @@ fun SettingsScreen(
                                                     selected = SampleType.DJ in crossLists,
                                                     onClick = {
                                                         if (SampleType.DJ in crossLists && crossLists.size > 1)
-                                                            crossLists = mutableListOf<SampleType>().apply {
-                                                                addAll(crossLists - SampleType.DJ)
-                                                            }
+                                                            AppSettings.crossLists -= SampleType.DJ
                                                         else if (SampleType.DJ !in crossLists)
-                                                            crossLists = mutableListOf<SampleType>().apply {
-                                                                addAll(crossLists + SampleType.DJ)
-                                                            }
-                                                        saveSettings()
+                                                            AppSettings.crossLists += SampleType.DJ
                                                     }
                                                 ),
                                             )
@@ -355,8 +269,7 @@ fun SettingsScreen(
                                         title = "启用循环模式",
                                         checked = patternEnabled,
                                         onCheckedChange = {
-                                            patternEnabled = it
-                                            saveSettings()
+                                            AppSettings.patternEnabled = it
                                         },
                                     )
                                     // 循环模式
@@ -372,8 +285,7 @@ fun SettingsScreen(
                                 summary = "在 Stinger.StartNextTrack 时切歌而不是 Stinger.End",
                                 checked = crossFadeEnabled,
                                 onCheckedChange = {
-                                    crossFadeEnabled = it
-                                    saveSettings()
+                                    AppSettings.crossFadeEnabled = it
                                 },
                             )
                         }
@@ -389,8 +301,7 @@ fun SettingsScreen(
                         summary = "应用就绪后直接开始继续播放最后选中的电台",
                         checked = autoResume,
                         onCheckedChange = {
-                            autoResume = it
-                            saveSettings()
+                            AppSettings.autoResume = it
                         },
                     )
                 }
@@ -402,13 +313,13 @@ fun SettingsScreen(
                     Card {
                         ArrowPreference(
                             title = "查看播放列表",
-                            enabled = isPlayerMode,
                             onClick = { showPlaylistSheet = true },
                             holdDownState = showPlaylistSheet,
                         )
                     }
                 }
 
+                /*
                 item {
                     SectionSmallTitle("已调度 Marker")
                     Card {
@@ -437,6 +348,7 @@ fun SettingsScreen(
                         }
                     }
                 }
+                */
             }
         }
 
@@ -446,7 +358,7 @@ fun SettingsScreen(
             defaultWindowInsetsPadding = false,
             onDismissRequest = {
                 showPatternSheet = false
-                AppSettings.savePatternNodes(patternNodes)
+                AppSettings.patternNodes = patternNodes
             },
         ) {
             ReorderableList(
@@ -467,7 +379,7 @@ fun SettingsScreen(
                             },
                             endAction = {
                                 IconButton(onClick = {
-                                    patternNodes = patternNodes.toMutableList().also { it.removeAt(index) }
+                                    AppSettings.patternNodes = patternNodes.toMutableList().also { it.removeAt(index) }
                                 }) {
                                     Icon(MiuixIcons.Delete, contentDescription = "删除")
                                 }
@@ -476,7 +388,7 @@ fun SettingsScreen(
                     }
                 },
                 onSettle = { fromIndex, toIndex ->
-                    patternNodes = patternNodes.toMutableList().also {
+                    AppSettings.patternNodes = patternNodes.toMutableList().also {
                         it.add(toIndex, it.removeAt(fromIndex))
                     }
                 },
@@ -487,7 +399,7 @@ fun SettingsScreen(
                 horizontalArrangement = Arrangement.Center,
             ) {
                 TextButton("添加", onClick = {
-                    patternNodes = patternNodes.toMutableList().also {
+                    AppSettings.patternNodes = patternNodes.toMutableList().also {
                         it.add(PatternNode())
                     }
                 })
@@ -499,7 +411,7 @@ fun SettingsScreen(
             val node = patternNodes[editingNodeIndex]
             var editType by remember(node.type) { mutableStateOf(node.type) }
             var editStep by remember(node.step) { mutableStateOf(node.step.toString()) }
-            var editProb by remember(node.probability) { mutableStateOf(node.probability.toFloat()) }
+            var editProb by remember(node.probability) { mutableStateOf(node.probability) }
 
             OverlayBottomSheet(
                 show = showNodeEditSheet,
@@ -533,14 +445,16 @@ fun SettingsScreen(
                     Spacer(Modifier.height(UiSpacing.Medium))
                     SuperSlider(
                         title = "概率",
-                        value = editProb,
-                        onValueChange = { editProb = it },
+                        value = editProb.toFloat(),
+                        onValueChange = { editProb = it.roundToInt() },
                         valueRange = 0f..100f,
                         steps = 100,
                         unit = "%",
                         displayFormatter = { "${it.toInt()}" },
                         onInputConfirm = { input ->
-                            input.toIntOrNull()?.let { editProb = it.toFloat().coerceIn(0f, 100f) }
+                            input.toIntOrNull()?.let {
+                                editProb = it.coerceIn(0, 100)
+                            }
                         },
                     )
                     Spacer(Modifier.height(UiSpacing.Large))
@@ -549,7 +463,7 @@ fun SettingsScreen(
                         horizontalArrangement = Arrangement.Center,
                     ) {
                         TextButton("保存", onClick = {
-                            patternNodes = patternNodes.toMutableList().also {
+                            AppSettings.patternNodes = patternNodes.toMutableList().also {
                                 it[editingNodeIndex] = PatternNode(
                                     type = editType,
                                     step = editStep.toIntOrNull() ?: 0,
@@ -564,8 +478,8 @@ fun SettingsScreen(
             }
         }
 
-        val playlistSnapshot = remember(showPlaylistSheet) {
-            if (showPlaylistSheet) Radio.getPlaylist()
+        val playList = remember(showPlaylistSheet) {
+            if (showPlaylistSheet) Radio.getPlayList()
             else null
         }
         OverlayBottomSheet(
@@ -574,45 +488,30 @@ fun SettingsScreen(
             defaultWindowInsetsPadding = false,
             onDismissRequest = { showPlaylistSheet = false },
         ) {
-            if (playlistSnapshot != null) {
-                val (samples, currentIndex) = playlistSnapshot
-                ComposeLazyColumn(
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = UiSpacing.Large),
+            if (playList != null) {
+                val (sections, currentIndex) = playList
+                LazyColumn(
+                    modifier = Modifier.fillMaxWidth(),
+                    itemSpacing = UiSpacing.Large,
                 ) {
-                    item { Spacer(Modifier.height(UiSpacing.Medium)) }
-                    itemsIndexed(samples) { index, sample ->
+                    itemsIndexed(sections) { index, section ->
                         val isCurrent = index == currentIndex
-                        val typeLabel = when (sample) {
-                            is TrackSample -> "Track"
-                            is StingerSample -> "Stinger"
-                            is DjSample -> "DJ"
-                        }
-                        val name = when (sample) {
-                            is TrackSample -> sample.displayName.ifEmpty { sample.soundName }
-                            is StingerSample -> sample.soundName
-                            is DjSample -> sample.soundName.ifEmpty { sample.gameEvent }
-                        }
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .background(
-                                    if (isCurrent) colorScheme.primary.copy(alpha = 0.12f)
-                                    else colorScheme.surface
+
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            colors =
+                                if (isCurrent) CardColors(
+                                    color = colorScheme.primary,
+                                    contentColor = colorScheme.onPrimary,
                                 )
-                                .padding(horizontal = 12.dp, vertical = 8.dp),
+                                else CardDefaults.defaultColors(),
+                            insideMargin = PaddingValues(12.dp),
                         ) {
-                            Text(
-                                text = typeLabel,
-                                color = if (isCurrent) colorScheme.primary else colorScheme.onSurface.copy(alpha = 0.6f),
-                                modifier = Modifier.padding(end = 12.dp),
-                            )
-                            Text(
-                                text = name,
-                                color = if (isCurrent) colorScheme.primary else colorScheme.onSurface,
-                            )
+                            Text("""Track: ${section.track?.sample?.let { it.displayName + " - " + it.artist } ?: "NULL"}""")
+                            Text("""Stinger: ${section.stinger?.sample?.soundName ?: "NULL"}""")
+                            Text("""DJ: ${section.dj?.sample?.soundName ?: "NULL"}""")
                         }
                     }
-                    item { Spacer(Modifier.height(UiSpacing.Medium)) }
                 }
             }
             Spacer(Modifier.height(UiSpacing.SheetBottom))

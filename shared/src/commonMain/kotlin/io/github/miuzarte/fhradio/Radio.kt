@@ -3,29 +3,18 @@ package io.github.miuzarte.fhradio
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
-import io.github.miuzarte.fhradio.model.DjSample
-import io.github.miuzarte.fhradio.model.PlaybackStatus
-import io.github.miuzarte.fhradio.model.RadioStation
-import io.github.miuzarte.fhradio.model.Sample
-import io.github.miuzarte.fhradio.model.SampleType
-import io.github.miuzarte.fhradio.model.StingerSample
-import io.github.miuzarte.fhradio.model.TrackSample
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.isActive
-import kotlinx.coroutines.launch
+import io.github.miuzarte.fhradio.AppSettings.getSource
+import io.github.miuzarte.fhradio.model.*
+import kotlinx.coroutines.*
+import okio.FileNotFoundException
+import okio.Path.Companion.toPath
+import top.yukonga.miuix.kmp.basic.SnackbarDuration
 import kotlin.random.Random
 import kotlin.time.Clock
 import kotlin.time.Duration
-import kotlin.time.Duration.Companion.milliseconds
-import kotlin.time.DurationUnit
+import kotlin.time.Duration.Companion.nanoseconds
+import kotlin.time.Duration.Companion.seconds
 import kotlin.time.Instant
-import kotlin.time.toDuration
-import okio.Path.Companion.toPath
-import top.yukonga.miuix.kmp.basic.SnackbarDuration
 
 internal fun debugDo(block: () -> Unit) {
     if (BuildKonfig.DEBUG) block()
@@ -43,425 +32,417 @@ internal fun debugSnack(message: String) {
 object Radio {
     private val mainPlayer get() = AppRuntime.mainPlayer
     private val secondaryPlayer get() = AppRuntime.secondaryPlayer
-    internal val settings get() = AppSettings.radioSettings
-    internal val crossLists get() = AppSettings.crossLists
-    internal val patternNodes get() = AppSettings.loadPatternNodes()
 
     var selectedStation: RadioStation? by mutableStateOf(null)
-    internal val selectedTracks get() = selectedStation?.tracks
-    internal val selectedStingers get() = selectedStation?.stingers
-    internal val selectedDj get() = selectedStation?.djSamples
-
-    internal var modeEngine: RadioModeEngine? = null
         private set
+    private var modeEngine: RadioModeEngineV2? = null
 
-    fun getPlaylist() = modeEngine?.getPlaylist()
+    fun getPlayList() = modeEngine?.getPlayList()
 
-    internal fun sampleList(type: SampleType): List<Sample>? =
-        when (type) {
-            SampleType.Track -> selectedTracks
-            SampleType.Stinger -> selectedStingers
-            SampleType.DJ -> selectedDj
+    // 通过显示置 null 以跳过指定 Sample 的保存
+    private fun savePlaybackState(
+        track: TrackSample? = trackPlaying,
+        stinger: StingerSample? = stingerPlaying,
+        dj: DjSample? = djPlaying,
+    ) {
+        if (selectedStation == null) return
+        track?.let {
+            SettingsStore.savePlaybackState(PlaybackState(it.soundName, trackCurrentPos!!, SampleType.Track))
+            return
         }
-
-    var pendingTrack: TrackSample? by mutableStateOf(null)
-    var currentTrack: TrackSample? by mutableStateOf(null)
-    internal lateinit var lastTrack: TrackSample
-    var pendingStinger: StingerSample? by mutableStateOf(null)
-    var currentStinger: StingerSample? by mutableStateOf(null)
-    internal lateinit var lastStinger: StingerSample
-    var pendingDj: DjSample? by mutableStateOf(null)
-    var currentDj: DjSample? by mutableStateOf(null)
-    internal lateinit var lastDj: DjSample
-
-
-    // --- Coroutine scope ---
+        stinger?.let {
+            SettingsStore.savePlaybackState(PlaybackState(it.soundName, stingerCurrentPos!!, SampleType.Track))
+            return
+        }
+        dj?.let {
+            SettingsStore.savePlaybackState(PlaybackState(it.soundName, djCurrentPos!!, SampleType.DJ))
+            return
+        }
+        // 全空则无视, 留下最后的状态
+    }
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
 
+    // 每秒保存播放状态, 用于启动应用时自动恢复
+    private var periodicSaveJob: Job? =
+        scope.launch(Dispatchers.Default) {
+            while (isActive) {
+                delay(1.seconds)
+                savePlaybackState()
+            }
+        }
+
     // --- Station lifecycle ---
 
-    fun openStation(
-        station: RadioStation,
+    fun reset() {
+        // require(selectedStation != null) { "no station selected" }
+
+        if (selectedStation == null) return // nothing to do
+        modeEngine = selectEngine(selectedStation!!)
+    }
+
+    fun setStation(
+        station: RadioStation?, // null for close
+        // TODO: 播放器模式下手动切台不自动播放, 程序启动按设置仍然自动播放
+        // TODO: 如果是切台, 切之后也继续播放
         play: Boolean = true,
     ) {
-        closeStation()
-        selectedStation = station
-        buildEngine(station)
         AppSettings.saveLastStation(station)
-        if (play) modeEngine?.getResume(SettingsStore.loadPlaybackState())
+
+        // close station
+        if (station == null) {
+            AppSettings.lastStationName = null
+            AppSettings.lastStationXmlPath = null
+            Scheduler.cancel()
+            stopBothPlayer()
+            selectedStation = null
+            modeEngine = null
+            return
+        }
+
+        // open/switch station
+        selectedStation = station
+        modeEngine = selectEngine(station)
+        // 直接 beginSection(resume) 即可, 不需要 reschedule
+
+        if (play) {
+            modeEngine
+                ?.resume(SettingsStore.playbackState)
+                ?.let { beginSection(it) }
+        }
     }
 
-    fun closeStation() {
-        stopPlayback()
-        modeEngine = null
-        selectedStation = null
-    }
-
-    private fun buildEngine(station: RadioStation) {
-        modeEngine = when (settings.radioMode) {
+    private fun selectEngine(station: RadioStation) =
+        when (AppSettings.radioMode) {
             RadioMode.Random -> RandomEngine(
+                station = station,
+                djSet = emptySet(),
+                stingerProbability = AppSettings.stingerProbability,
+                djProbability = AppSettings.djProbability,
+            )
+
+            RadioMode.Seed -> SeedEngine(
+                // TODO: implement
                 station = station,
             )
 
             RadioMode.Player -> PlayerEngine(
                 station = station,
-                playMode = settings.playMode,
-                crossLists = crossLists,
-                patternEnabled = settings.patternEnabled,
-                patternNodes = patternNodes,
-            )
-
-            RadioMode.Seed -> SeedEngine(
-                station = station,
+                playMode = AppSettings.playMode,
+                crossLists = AppSettings.crossLists,
+                patternEnabled = AppSettings.patternEnabled,
+                patternNodes = AppSettings.patternNodes,
             )
         }
-        reschedule()
-    }
-
-    // private fun releaseEngin() { modeEngine = null }
-
-    // --- Scheduling infrastructure ---
-
-    // 让不同的 Engine 自行派发
-    private fun scheduleMarkers(sample: Sample, beginAt: Duration = Duration.ZERO) {
-        modeEngine?.scheduleModeMarkers(sample, beginAt) ?: return
-        scheduleEndMarkers(sample, beginAt)
-    }
-
-    // 每个 Sample 都有 .End marker, 统一在这里派发
-    private fun scheduleEndMarkers(sample: Sample, beginAt: Duration) =
-        when (sample) {
-            is TrackSample -> {
-                val tag = if (sample.end > 0) "Track.End" else "Track.SampleLength"
-                val targetPos = if (sample.end > 0) sample.end else sample.sampleLength
-                Scheduler.scheduleMarker(tag, sample, targetPos, beginAt) {
-                    debugSnack("$tag @ $targetPos")
-                    trackOnEnd()
-                }
-            }
-
-            is StingerSample -> {
-                val tag = if (sample.end > 0) "Stinger.End" else "Stinger.SampleLength"
-                val targetPos = if (sample.end > 0) sample.end else sample.sampleLength
-                Scheduler.scheduleMarker(tag, sample, targetPos, beginAt) {
-                    debugSnack("$tag @ $targetPos")
-                    stingerOnEnd()
-                }
-            }
-
-            is DjSample -> {
-                val tag = "DJ.SampleLength"
-                val targetPos = sample.sampleLength
-                Scheduler.scheduleMarker(tag, sample, targetPos, beginAt) {
-                    debugSnack("$tag @ $targetPos")
-                    djOnEnd()
-                }
-            }
-        }
-
-    // --- Callbacks ---
-
-    private fun stingerPlayerIsBusy() = secondaryPlayer.state.isBusy()
-
-    // "Track.End" / "Track.SampleLength"
-    // 处理 currentTrack 播放结束后的收尾
-    private fun trackOnEnd() {
-        currentTrack = null
-    }
-
-    // "Track.StingerStart"
-    // 根据 pendingStinger 来播放
-    private fun trackOnStingerStart() {
-    }
-
-    // "Track.DJStart"
-    private fun trackOnDJStart() {
-    }
-
-    // "Stinger.StartNextTrack"
-    private fun stingerOnStartNextTrack() {
-    }
-
-    // "Stinger.End" / "Stinger.SampleLength"
-    private fun stingerOnEnd() {
-        currentStinger = null
-    }
-
-    // "DJ.SampleLength"
-    private fun djOnEnd() {
-        currentDj = null
-    }
 
     // --- Playback control ---
 
-    internal var lastPlayedSample: Sample? = null
-    private var periodicSaveJob: Job? = null
+    // 当前播放
+    // 播放开始时间点
+    // 播放切入点
+    // 播放当前进度
 
-    private var trackStartedAt: Instant? = null
-    private var trackBeginAt: Duration = Duration.ZERO
-    private var stingerStartedAt: Instant? = null
-    private var stingerBeginAt: Duration = Duration.ZERO
-    private var djStartedAt: Instant? = null
-    private var djBeginAt: Duration = Duration.ZERO
+    var trackPlaying: TrackSample? = null
+        private set
+    private var trackBeginInstant: Instant? = null
+    private var trackBeginPos: Duration = Duration.ZERO
+    private val trackCurrentPos: Duration?
+        get() = trackBeginInstant?.let { trackBeginPos + (Clock.System.now() - it) }
 
+    var stingerPlaying: StingerSample? = null
+        private set
+    private var stingerBeginInstant: Instant? = null
+    private var stingerBeginPos: Duration = Duration.ZERO
+    private val stingerCurrentPos: Duration?
+        get() = stingerBeginInstant?.let { stingerBeginPos + (Clock.System.now() - it) }
 
-    fun playRandomFromList(type: SampleType) {
-        selectedStation ?: return
-        if (currentTrack != null || currentStinger != null || currentDj != null) return
-        val list = sampleList(type) ?: return
-        val sample = list.filter { it.resolvePath() != null }.randomOrNull()
-        if (sample != null) playSample(sample)
-        else AppRuntime.snackbar("无可用曲目")
-    }
-
-    fun playSample(sample: Sample): Boolean {
-        selectedStation ?: return false
-        lastPlayedSample = sample
-        return beginSample(sample)
-    }
+    var djPlaying: DjSample? = null
+        private set
+    private var djBeginInstant: Instant? = null
+    private var djBeginPos: Duration = Duration.ZERO
+    private val djCurrentPos: Duration?
+        get() = djBeginInstant?.let { djBeginPos + (Clock.System.now() - it) }
 
     fun beginSample(
-        sample: Sample,
-        beginAt: Duration = Duration.ZERO,
-        solo: Boolean = true,
-        useTryPlay: Boolean = false,
+        playItem: PlayItem,
+        solo: Boolean = false,
+        player: AudioPlayer = if (playItem.sample.type == SampleType.Track) mainPlayer else secondaryPlayer,
+        useTryPlay: Boolean = player == secondaryPlayer,
     ): Boolean {
-        selectedStation ?: return false
-        if (solo) {
-            stopMain()
-            stopSecondary()
-        }
-        val path = sample.resolvePath()
-        if (path == null) {
-            finishPlayback()
-            return false
+        if (solo) stopBothPlayer()
+        else when (this) {
+            mainPlayer -> stopMainPlayer()
+            secondaryPlayer -> stopSecondaryPlayer()
         }
 
-        lastPlayedSample = sample
+        val sample = playItem.sample
+        val path = selectedStation?.resolvePath(sample) ?: return false
+        val beginAt = playItem.beginAt
 
-        when (sample) {
-            is TrackSample -> {
-                currentTrack = sample
-                lastTrack = sample
-                currentStinger = null
-                currentDj = null
-                trackStartedAt = Clock.System.now()
-                trackBeginAt = beginAt
-                if (useTryPlay) mainPlayer.tryPlay(path, beginAt)
-                else mainPlayer.play(path, beginAt)
-            }
+        return if (useTryPlay) {
+            player.tryPlay(path, beginAt)
+        } else {
+            player.play(path, beginAt)
+            true
+        }.also {
+            if (it) {
+                when (sample) {
+                    is TrackSample -> {
+                        trackPlaying = sample
+                        trackBeginInstant = Clock.System.now()
+                        trackBeginPos = beginAt
+                    }
 
-            is StingerSample -> {
-                currentStinger = sample
-                lastStinger = sample
-                currentTrack = null
-                currentDj = null
-                stingerStartedAt = Clock.System.now()
-                stingerBeginAt = beginAt
-                if (useTryPlay) secondaryPlayer.tryPlay(path, beginAt)
-                else secondaryPlayer.play(path, beginAt)
-            }
+                    is StingerSample -> {
+                        stingerPlaying = sample
+                        stingerBeginInstant = Clock.System.now()
+                        stingerBeginPos = beginAt
+                    }
 
-            is DjSample -> {
-                currentDj = sample
-                lastDj = sample
-                currentTrack = null
-                currentStinger = null
-                djStartedAt = Clock.System.now()
-                djBeginAt = beginAt
-                if (useTryPlay) secondaryPlayer.tryPlay(path, beginAt)
-                else secondaryPlayer.play(path, beginAt)
+                    is DjSample -> {
+                        djPlaying = sample
+                        djBeginInstant = Clock.System.now()
+                        djBeginPos = beginAt
+                    }
+                }
             }
         }
-
-        debugDo {
-            val totalSec = beginAt.inWholeSeconds
-            val min = totalSec / 60
-            val sec = totalSec % 60
-            val timeStr = """${if (min > 0) "${min}m" else ""}${sec}s"""
-            val samples = beginAt.inWholeMilliseconds * sample.sampleRate / 1000
-            debugSnack("""${if (useTryPlay) "(try) " else ""}切入 ${sample.type}: $timeStr (${samples})""")
-        }
-
-        scheduleMarkers(sample, beginAt)
-        startPeriodicSave()
-        return true
     }
 
-    private fun startPeriodicSave() {
-        periodicSaveJob?.cancel()
-        periodicSaveJob = scope.launch(Dispatchers.Default) {
-            while (isActive) {
-                delay(1000.milliseconds)
+    fun stopPlayback(saveState: Boolean = true) = stopBothPlayer(saveState)
+
+    private fun stopBothPlayer(saveState: Boolean = true) {
+        // 先停止 secondary, 使 main 之后保存状态以覆盖 secondary
+        stopSecondaryPlayer(saveState)
+        stopMainPlayer(saveState)
+    }
+
+    // 停止 player 的播放, 同时保存播放状态
+    private fun stopMainPlayer(saveState: Boolean = true) {
+        mainPlayer.stop()
+
+        if (saveState) savePlaybackState(stinger = null, dj = null)
+
+        trackPlaying = null
+        trackBeginInstant = null // 让 trackCurrentPos 返回 null
+    }
+
+    // 停止 player 的播放, 同时保存播放状态
+    private fun stopSecondaryPlayer(saveState: Boolean = true) {
+        secondaryPlayer.stop()
+
+        if (saveState) savePlaybackState(track = null)
+
+        stingerPlaying = null
+        stingerBeginInstant = null
+
+        djPlaying = null
+        djBeginInstant = null
+    }
+
+    private val stingerUseStartNextTrack: Boolean
+        get() = when (AppSettings.radioMode) {
+            RadioMode.Random -> true
+            RadioMode.Seed -> true
+            RadioMode.Player -> AppSettings.crossFadeEnabled
+        }
+
+    // 整个 section 一次性派发所有 marker
+    // Track only:      Track.End
+    // Track + Stinger: Track.StingerStart, Stinger.StartNextTrack
+    // Track + DJ:      Track.DJStart, DJ.SampleLength
+    // else:            require(isStingerAndDjMutuallyExclusive())
+    fun beginSection(section: PlaySection) {
+        // Radio 继续下一段
+        fun continueNext() {
+            modeEngine?.next(section)?.let { beginSection(it) }
+        }
+
+        fun scheduleOne(
+            tag: String,
+            delay: Duration,
+            block: () -> Unit,
+        ) {
+            Scheduler.scheduleMarker(tag, delay) {
+                debugSnack("$tag triggered")
+                block()
+            }
+        }
+
+        fun scheduleTrackWithSecondary(
+            trackItem: PlayItem.Track,
+            secondaryItem: PlayItem,
+            trackTag: String,
+            secondaryTag: String,
+            trackPos: Duration, // track 内标记位置 (相对于 track 开始)
+            secondaryPos: Duration, // secondary 内标记位置 (相对于 secondary 开始)
+        ) {
+            val trackStartOffset = trackPos - trackItem.beginAt
+            val secondaryStartOffset = trackStartOffset + (secondaryPos - secondaryItem.beginAt)
+
+            scheduleOne(trackTag, trackStartOffset) {
+                // 开始播放 secondary
+                beginSample(secondaryItem)
+            }
+            scheduleOne(secondaryTag, secondaryStartOffset) {
+                continueNext()
+            }
+        }
+
+        when {
+            section.isTrackOnly() -> {
+                val track = section.track!!
+                beginSample(track)
+
+                val tag = "Track.End"
+                val delay = (-track.beginAt) + track.sample.end
+                scheduleOne(tag, delay, ::continueNext)
+            }
+
+            section.isTrackAndStinger() -> {
+                val track = section.track!!
+                val stinger = section.stinger!!
+                beginSample(track)
+
+                val trackTag = "Track.StingerStart"
+                val trackPos = track.sample.stingerStart ?: track.sample.duration
+
+                val (stingerTag, stingerPos) =
+                    if (stingerUseStartNextTrack) "Stinger.StartNextTrack" to
+                            (stinger.sample.startNextTrack ?: stinger.sample.end)
+                    else "Stinger.End" to stinger.sample.end
+
+                scheduleTrackWithSecondary(
+                    trackItem = track,
+                    secondaryItem = stinger,
+                    trackTag = trackTag,
+                    secondaryTag = stingerTag,
+                    trackPos = trackPos,
+                    secondaryPos = stingerPos,
+                )
+            }
+
+            section.isTrackAndDj() -> {
+                val track = section.track!!
+                val dj = section.dj!!
+                beginSample(track)
+
+                val trackTag = "Track.DJStart"
+                val trackPos = track.sample.stingerStart ?: track.sample.duration
+
+                val djTag = "DJ.SampleLength"
+                val djPos = dj.sample.end
+
+                scheduleTrackWithSecondary(
+                    trackItem = track,
+                    secondaryItem = dj,
+                    trackTag = trackTag,
+                    secondaryTag = djTag,
+                    trackPos = trackPos,
+                    secondaryPos = djPos,
+                )
+            }
+
+            else -> {
+                // 没有 Track
+                // Stinger / DJ 互斥
+                require(section.isStingerAndDjMutuallyExclusive())
+
                 when {
-                    currentTrack != null -> {
-                        val t = currentTrack!!
-                        SettingsStore.savePlaybackState(t.soundName, currentTrackPos(), "Track")
+                    section.stinger != null -> {
+                        val stinger = section.stinger
+                        beginSample(stinger)
+
+                        val (tag, pos) =
+                            if (stingerUseStartNextTrack) "Stinger.StartNextTrack" to
+                                    (stinger.sample.startNextTrack ?: stinger.sample.end)
+                            else "Stinger.End" to stinger.sample.end
+                        val delay = pos - stinger.beginAt
+                        scheduleOne(tag, delay, ::continueNext)
                     }
 
-                    currentStinger != null -> {
-                        val s = currentStinger!!
-                        SettingsStore.savePlaybackState(s.soundName, currentStingerPos(), "Stinger")
-                    }
+                    section.dj != null -> {
+                        val dj = section.dj
 
-                    currentDj != null -> {
-                        val d = currentDj!!
-                        SettingsStore.savePlaybackState(d.soundName, currentDjPos(), "DJ")
+                        beginSample(dj)
+
+                        val tag = "DJ.SampleLength"
+                        val delay = (-dj.beginAt) + (dj.sample.end)
+                        scheduleOne(tag, delay, ::continueNext)
                     }
                 }
             }
         }
-    }
-
-    private fun stopPeriodicSave() {
-        periodicSaveJob?.cancel()
-        periodicSaveJob = null
-    }
-
-    fun stopPlayback() {
-        stopPeriodicSave()
-        val st = selectedStation
-        val tr = currentTrack
-        if (st != null && tr != null) {
-            AppSettings.saveLastStation(st)
-        }
-        Scheduler.cancel()
-        finishPlayback()
-    }
-
-    internal fun stopMain() {
-        mainPlayer.stop()
-        Scheduler.cancel("Track.StingerStart")
-        Scheduler.cancel("Track.DJStart")
-        Scheduler.cancel("Track.End")
-        Scheduler.cancel("Track.SampleLength")
-    }
-
-    internal fun stopSecondary() {
-        secondaryPlayer.stop()
-        Scheduler.cancel("Stinger.StartNextTrack")
-        Scheduler.cancel("Stinger.End")
-        Scheduler.cancel("Stinger.SampleLength")
-        Scheduler.cancel("DJ.SampleLength")
-    }
-
-    private fun finishPlayback() {
-        stopPeriodicSave()
-        mainPlayer.stop()
-        secondaryPlayer.stop()
-        currentTrack = null
-        currentStinger = null
-        currentDj = null
-    }
-
-    // --- Position tracking ---
-
-    internal fun currentTrackPos(): Duration =
-        trackStartedAt?.let { trackBeginAt + (Clock.System.now() - it) } ?: Duration.ZERO
-
-    internal fun currentStingerPos(): Duration =
-        stingerStartedAt?.let { stingerBeginAt + (Clock.System.now() - it) } ?: Duration.ZERO
-
-    internal fun currentDjPos(): Duration =
-        djStartedAt?.let { djBeginAt + (Clock.System.now() - it) } ?: Duration.ZERO
-
-    private var lastRescheduleAt: Instant? = null
-
-    fun reschedule() {
-        val now = Clock.System.now()
-        if (lastRescheduleAt != null && (now - lastRescheduleAt!!) < 300.milliseconds) return
-        lastRescheduleAt = now
-        Scheduler.cancel()
-
-        if (trackStartedAt != null) {
-            currentTrack?.let { scheduleMarkers(it, currentTrackPos()) }
-        }
-        if (stingerStartedAt != null) {
-            currentStinger?.let { scheduleMarkers(it, currentStingerPos()) }
-        }
-        if (djStartedAt != null) {
-            currentDj?.let { scheduleMarkers(it, currentDjPos()) }
-        }
-    }
-
-    fun reset() = modeEngine.reset()
-
-    // --- Helpers shared by engines ---
-
-    internal fun playNext(type: SampleType, beginAt: Duration = Duration.ZERO) {
-        val sample = modeEngine.getNext(type) ?: return
-        beginSample(sample, beginAt, solo = false)
-    }
-
-    internal fun playRandom(type: SampleType) {
-        val sample = modeEngine.getNext(type) ?: return
-        beginSample(sample, sample.randomBeginAt(), solo = false)
-    }
-
-    internal fun randomSample(type: SampleType, exclude: Set<Sample> = emptySet()): Sample? {
-        val list = sampleList(type) ?: return null
-        if (list.all { it in exclude }) return null
-        var sample: Sample
-        do {
-            sample = list[Random.nextInt(list.size)]
-        } while (sample in exclude)
-        return sample
-    }
-
-    // --- Utilities ---
-
-    private fun Sample.samplesToDuration(pos: Int): Duration =
-        (pos * 1000L / sampleRate).toDuration(DurationUnit.MILLISECONDS)
-
-    private fun Sample.randomBeginAt(): Duration = when (this) {
-        is TrackSample -> {
-            if (this.durationMs <= 1000) Duration.ZERO
-            else if (this.trackLoopStart <= 0) Random.nextLong(this.durationMs).toDuration(DurationUnit.MILLISECONDS)
-            else {
-                val loopStartMs = trackLoopStart * 1000L / this.sampleRate
-                if (Random.nextInt(100) < 40) {
-                    val offset = Random.nextLong(-loopStartMs, loopStartMs + 1)
-                    (loopStartMs + offset).coerceIn(0, this.durationMs - 1000).toDuration(DurationUnit.MILLISECONDS)
-                } else {
-                    Random.nextLong(this.durationMs).toDuration(DurationUnit.MILLISECONDS)
-                }
-            }
-        }
-
-        is StingerSample -> Random.nextLong(0, durationMs / 3).toDuration(DurationUnit.MILLISECONDS)
-        is DjSample -> Random.nextLong(0, durationMs / 2).toDuration(DurationUnit.MILLISECONDS)
     }
 
     fun dispose() {
-        Scheduler.cancel()
     }
 }
 
-internal fun Sample.resolvePath(): String? {
-    val station = Radio.selectedStation ?: return null
-    val root = AppSettings.findSourcePath(station) ?: return null
-    val (sub, name) = when (this) {
-        is TrackSample -> "Track" to this.soundName
-        is DjSample -> {
-            val idx = Radio.sampleList(this.type)?.indexOf(this) ?: return null
-            "DJ" to if (idx < 0) return null else "sound_$idx"
+private fun Int.roll(until: Int = 100): Boolean =
+    Random.nextInt(until) < this
+
+private fun <T> Int.roll(until: Int = 100, block: () -> T): T? =
+    this.roll(until).run(block)
+
+private fun <T> Boolean.run(block: () -> T): T? =
+    if (this) block()
+    else null
+
+private fun Random.nextDuration(until: Duration): Duration {
+    require(until >= Duration.ZERO) { "until must be non-negative" }
+    val untilNanos = until.inWholeNanoseconds
+    // 如果 until 为 0，直接返回 0
+    if (untilNanos == 0L) return Duration.ZERO
+    return nextLong(0L, untilNanos).nanoseconds
+}
+
+// 对 TrackSample 提高 Track.TrackLoopStart 附近的权重
+// 对 StingerSample 只随机前 1/4
+// 对 DjSample 只随机前 1/2
+internal fun Sample.randomBeginAt(): Duration {
+    val safeDuration = (duration - 1.seconds) // 留一秒安全区
+        .coerceAtLeast(Duration.ZERO)
+
+    return when (this) {
+        is TrackSample -> {
+            if (trackLoopStart == null || trackLoopStart!! <= Duration.ZERO)
+                Random.nextDuration(safeDuration)
+            else if (safeDuration <= 1.seconds)
+                Duration.ZERO
+            else {
+                60.roll {
+                    Random.nextDuration(trackLoopStart!! * 2)
+                        .coerceAtMost(safeDuration)
+                } ?: run {
+                    Random.nextDuration(safeDuration)
+                }
+            }
         }
 
-        is StingerSample -> {
-            val idx = Radio.sampleList(this.type)?.indexOf(this) ?: return null
-            "Stinger" to if (idx < 0) return null else "sound_$idx"
-        }
+        is StingerSample -> Random.nextDuration(safeDuration / 4)
+
+        is DjSample -> Random.nextDuration(safeDuration / 2)
     }
-    val base = (root.toPath() / station.name / sub / name).toString()
+}
 
-    val primaryExt = AppSettings.findSourceExtension(station)
+/**
+ * @throws [FileNotFoundException] 如果可用的扩展名都匹配失败
+ */
+internal fun RadioStation.resolvePath(sample: Sample): String? {
+    val source = this.getSource() ?: return null
+    val relPath = pathFor(sample) ?: return null
+
+    val base = (source.audioFolderPath.toPath() / relPath).toString()
+    val primaryExt = source.audioExtension
     var path = "$base.$primaryExt"
     if (fileExists(path)) return path
+
     for (ext in listOf("wav", "flac", "mp3", "opus")) {
         if (ext == primaryExt) continue
         path = "$base.$ext"
         if (fileExists(path)) return path
     }
-    return null
+
+    throw FileNotFoundException("$base.*")
 }

@@ -1,3 +1,13 @@
+# FHRadio
+
+Forza Horizon (6) radio simulator
+
+WIP
+
+Detailed design scheme: [radioSchema.md](./radioSchema.md)
+
+---
+
 This is a Kotlin Multiplatform project targeting Android, iOS, Desktop (JVM).
 
 * [/iosApp](./iosApp/iosApp) contains an iOS application. Even if you’re sharing your UI with Compose Multiplatform,

@@ -17,8 +17,12 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import io.github.miuzarte.fhradio.*
+import io.github.miuzarte.fhradio.AppSettings
+import io.github.miuzarte.fhradio.ImportResult
+import io.github.miuzarte.fhradio.Radio
 import io.github.miuzarte.fhradio.constants.UiSpacing
+import io.github.miuzarte.fhradio.importRadio
+import io.github.miuzarte.fhradio.model.RadioSource
 import io.github.miuzarte.fhradio.model.RadioStation
 import io.github.miuzarte.fhradio.model.Sample
 import io.github.miuzarte.fhradio.scaffolds.*
@@ -123,9 +127,9 @@ fun RadiosScreen(
                 bottomInnerPadding = bottomInnerPadding,
                 limitLandscapeWidth = false,
             ) {
-                AppSettings.sources.forEach { source ->
+                AppSettings.radioSourcesXml.forEach { source ->
                     item { SectionSmallTitle(source.name) }
-                    val stations = AppSettings.sourceStations[source.xmlFilePath] ?: emptyList()
+                    val stations = AppSettings.radioSources[source.xmlFilePath] ?: emptyList()
                     val ordered = source.stationOrder.mapNotNull { num -> stations.find { it.number == num } }
                     flowGrid(ordered) { _, station ->
                         val isSelected = Radio.selectedStation == station
@@ -133,11 +137,12 @@ fun RadiosScreen(
                             station = station,
                             selected = isSelected,
                             onClick = {
-                                if (isSelected) {
-                                    Radio.closeStation()
-                                } else {
-                                    Radio.openStation(station)
-                                }
+                                if (isSelected) Radio.setStation(
+                                    station = null,
+                                )
+                                else Radio.setStation(
+                                    station = station,
+                                )
                             },
                         )
                     }
@@ -165,7 +170,7 @@ fun RadiosScreen(
                 val path = pendingXmlPath ?: return@IconButton
                 val folder = pendingAudioPath ?: return@IconButton
                 val ordered = pendingStationOrder.mapNotNull { num -> pendingStations.find { it.number == num } }
-                AppSettings.addSource(
+                AppSettings.addRadioSource(
                     RadioSource("新电台源", path, folder, pendingStationOrder),
                     ordered,
                 )
@@ -216,11 +221,11 @@ fun RadiosScreen(
     ) {
         ReorderableList(
             itemsProvider = {
-                AppSettings.sources.map { source ->
+                AppSettings.radioSourcesXml.map { source ->
                     ReorderableList.Item(
                         id = source.xmlFilePath,
                         title = source.name,
-                        subtitle = "${AppSettings.sourceStations[source.xmlFilePath]?.size ?: 0} 电台",
+                        subtitle = "${AppSettings.radioSources[source.xmlFilePath]?.size ?: 0} 电台",
                         onClick = {
                             editingSourceXmlPath = source.xmlFilePath
                             editingStationOrder = source.stationOrder
@@ -243,17 +248,17 @@ fun RadiosScreen(
                 }
             },
             onSettle = { from, to ->
-                val reordered = AppSettings.sources.toMutableList().apply {
-                    add(to, removeAt(from))
-                }
-                AppSettings.saveSources(reordered)
+                AppSettings.radioSourcesXml = AppSettings.radioSourcesXml.toMutableList()
+                    .apply {
+                        add(to, removeAt(from))
+                    }
             },
         ).invoke()
         Spacer(Modifier.height(UiSpacing.SheetBottom))
     }
 
-    sourceToDelete?.let { xmlPath ->
-        val sourceName = AppSettings.sources.find { it.xmlFilePath == xmlPath }?.name ?: xmlPath
+    sourceToDelete?.let { xmlFilePath ->
+        val sourceName = AppSettings.radioSourcesXml.find { it.xmlFilePath == xmlFilePath }?.name ?: xmlFilePath
         OverlayDialog(
             show = showDeleteDialog,
             title = "确认删除",
@@ -272,7 +277,7 @@ fun RadiosScreen(
                 TextButton(
                     text = "删除",
                     onClick = {
-                        AppSettings.removeSource(xmlPath)
+                        AppSettings.removeRadioSource(xmlFilePath)
                         showDeleteDialog = false
                         showManageSheet = false
                     },
@@ -291,7 +296,7 @@ fun RadiosScreen(
             defaultWindowInsetsPadding = false,
         ) {
             val xmlPath = editingSourceXmlPath ?: return@OverlayBottomSheet
-            val stations = AppSettings.sourceStations[xmlPath] ?: return@OverlayBottomSheet
+            val stations = AppSettings.radioSources[xmlPath] ?: return@OverlayBottomSheet
             Column(modifier = Modifier.padding(horizontal = UiSpacing.Large)) {
                 SuperTextField(
                     value = editingSourceName,
@@ -300,10 +305,10 @@ fun RadiosScreen(
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
                     onFocusLost = {
-                        val source = AppSettings.sources.find { it.xmlFilePath == xmlPath }
+                        val source = AppSettings.radioSourcesXml.find { it.xmlFilePath == xmlPath }
                             ?.copy(name = editingSourceName)
                             ?: return@SuperTextField
-                        AppSettings.updateSource(source)
+                        AppSettings.updateRadioSource(source)
                     },
                 )
                 Spacer(Modifier.height(12.dp))
@@ -324,10 +329,10 @@ fun RadiosScreen(
                             add(to, removeAt(from))
                         }
                         val source =
-                            AppSettings.sources.find { it.xmlFilePath == xmlPath }
+                            AppSettings.radioSourcesXml.find { it.xmlFilePath == xmlPath }
                                 ?.copy(stationOrder = editingStationOrder)
                                 ?: return@ReorderableList
-                        AppSettings.updateSource(source)
+                        AppSettings.updateRadioSource(source)
                     },
                 ).invoke()
             }
@@ -360,7 +365,7 @@ private fun InfoLine(label: String, value: String) {
     Text(text = "$label: $value", fontSize = 12.sp, color = colorScheme.onSurface.copy(alpha = 0.6f))
 }
 
-inline fun <T> Iterable<T>.sumOf(selector: (T) -> Duration): Duration {
+inline fun <T> Iterable<T>.sumOfDuration(selector: (T) -> Duration): Duration {
     var sum = Duration.ZERO
     for (element in this) {
         sum += selector(element)
@@ -369,7 +374,7 @@ inline fun <T> Iterable<T>.sumOf(selector: (T) -> Duration): Duration {
 }
 
 private fun List<Sample>.totalDuration() =
-    sumOf { it.duration }.format()
+    sumOfDuration { it.duration }.format()
 
 @Composable
 private fun BoxScope.ActiveIcon(visible: Boolean) {

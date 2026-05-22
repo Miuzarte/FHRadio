@@ -72,6 +72,7 @@ kotlin {
             implementation(libs.miuix.icons)
             implementation(libs.miuix.preference)
             implementation(libs.reorderable)
+            implementation(libs.kotlinx.io.core)
             implementation(libs.kotlinx.serialization.json)
             implementation(libs.multiplatform.settings.no.arg)
             implementation(libs.multiplatform.settings.serialization)

@@ -14,21 +14,18 @@ object AppRuntime {
 
     // --- Snackbar ---
 
-    private val snackbarHostStateLock = Any()
     private val snackbarHostStateStack = mutableListOf<SnackbarHostState>()
 
     var snackbarHostState: SnackbarHostState?
-        get() = synchronized(snackbarHostStateLock) { snackbarHostStateStack.lastOrNull() }
+        get() = snackbarHostStateStack.lastOrNull()
         set(value) {
-            synchronized(snackbarHostStateLock) {
-                snackbarHostStateStack.clear()
-                if (value != null) snackbarHostStateStack.add(value)
-            }
+            snackbarHostStateStack.clear()
+            if (value != null) snackbarHostStateStack.add(value)
         }
 
     fun registerSnackbarHostState(hostState: SnackbarHostState): () -> Unit {
-        synchronized(snackbarHostStateLock) { snackbarHostStateStack.add(hostState) }
-        return { synchronized(snackbarHostStateLock) { snackbarHostStateStack.remove(hostState) } }
+        snackbarHostStateStack.add(hostState)
+        return { snackbarHostStateStack.remove(hostState) }
     }
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)

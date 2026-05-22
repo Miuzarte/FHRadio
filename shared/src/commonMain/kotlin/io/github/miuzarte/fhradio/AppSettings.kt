@@ -3,145 +3,158 @@ package io.github.miuzarte.fhradio
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import io.github.miuzarte.fhradio.model.PlaybackState
+import io.github.miuzarte.fhradio.model.RadioSettings
+import io.github.miuzarte.fhradio.model.RadioSource
 import io.github.miuzarte.fhradio.model.RadioStation
-import io.github.miuzarte.fhradio.model.SampleType
 import kotlinx.coroutines.*
-import kotlinx.serialization.json.Json
+import kotlin.reflect.KProperty
+
+class SettingMutableState<T>(
+    initial: T,
+    private vararg val onChanged: () -> Unit,
+    private val onSet: (oldValue: T, newValue: T) -> Unit = { _, _ -> },
+) {
+    private val state = mutableStateOf(initial)
+    operator fun getValue(thisRef: Any?, property: KProperty<*>) = state.value
+    operator fun setValue(thisRef: Any?, property: KProperty<*>, value: T) {
+        val old = state.value
+        if (old != value) {
+            onChanged.forEach { it() }
+            onSet(old, value)   // 调用自定义逻辑
+            state.value = value
+        }
+    }
+}
 
 object AppSettings {
-    var radioSettings by mutableStateOf(SettingsStore.loadSettings())
-    var radioMode by mutableStateOf(radioSettings.radioMode)
-    var playMode by mutableStateOf(radioSettings.playMode)
+    private val radioSettings get() = SettingsStore.radioSettings
+    private fun saveRadioSettings(settings: RadioSettings) = SettingsStore.saveRadioSettings(settings)
+    private fun saveRadioSources(sources: List<RadioSource>) = SettingsStore.saveRadioSources(sources)
+    private fun savePlaybackState(state: PlaybackState) = SettingsStore.savePlaybackState(state)
 
-    var sources: List<RadioSource> by mutableStateOf(SettingsStore.loadSources())
+    var radioMode by SettingMutableState(radioSettings.radioMode, Radio::reset) { _, new ->
+        saveRadioSettings(radioSettings.copy(radioMode = new))
+    }
+    var playMode by SettingMutableState(radioSettings.playMode, Radio::reset) { _, new ->
+        saveRadioSettings(radioSettings.copy(playMode = new))
+    }
+
+    var stingerProbability by SettingMutableState(radioSettings.stingerProbability, Radio::reset) { _, new ->
+        saveRadioSettings(radioSettings.copy(stingerProbability = new))
+    }
+    var djProbability by SettingMutableState(radioSettings.djProbability, Radio::reset) { _, new ->
+        saveRadioSettings(radioSettings.copy(djProbability = new))
+    }
+
+    var crossListsJson by SettingMutableState(radioSettings.crossListsJson, Radio::reset) { _, new ->
+        saveRadioSettings(radioSettings.copy(crossListsJson = new))
+    }
+
+    // parsed
+    var crossLists by SettingMutableState(radioSettings.crossLists, Radio::reset) { _, new ->
+        saveRadioSettings(radioSettings.withCrossLists(new))
+    }
+
+    var patternEnabled by SettingMutableState(radioSettings.patternEnabled, Radio::reset) { _, new ->
+        saveRadioSettings(radioSettings.copy(patternEnabled = new))
+    }
+    var patternJson by SettingMutableState(radioSettings.patternJson, Radio::reset) { _, new ->
+        saveRadioSettings(radioSettings.copy(patternJson = new))
+    }
+
+    // parsed
+    var patternNodes by SettingMutableState(radioSettings.patternNodes, Radio::reset) { _, new ->
+        saveRadioSettings(radioSettings.withPatternNodes(new))
+    }
+
+    var crossFadeEnabled by SettingMutableState(radioSettings.crossFadeEnabled, Radio::reset) { _, new ->
+        saveRadioSettings(radioSettings.copy(crossFadeEnabled = new))
+    }
+
+    var autoResume by SettingMutableState(radioSettings.autoResume) { _, new ->
+        saveRadioSettings(radioSettings.copy(autoResume = new))
+    }
+
+    var lastStationXmlPath by SettingMutableState(radioSettings.lastStationXmlPath) { _, new ->
+        saveRadioSettings(radioSettings.copy(lastStationXmlPath = new))
+    }
+    var lastStationName by SettingMutableState(radioSettings.lastStationName) { _, new ->
+        saveRadioSettings(radioSettings.copy(lastStationName = new))
+    }
+
+    var radioSourcesXml by SettingMutableState(SettingsStore.radioSourcesXml) { _, new ->
+        saveRadioSources(new)
+    }
+
+    var playbackState by SettingMutableState(SettingsStore.playbackState) { _, new ->
+        savePlaybackState(new)
+    }
+
+    // 超级重, 不序列化, 启动时构建
+    // xml path to stations
+    var radioSources: Map<String, List<RadioStation>> by mutableStateOf(emptyMap())
         private set
-    var sourceStations: Map<String, List<RadioStation>> by mutableStateOf(emptyMap())
-        private set
 
-    private val json = Json { ignoreUnknownKeys = true }
-
-    var crossLists: List<SampleType> by mutableStateOf(loadCrossLists())
-        private set
-
-    private fun loadCrossLists(): List<SampleType> = runCatching {
-        json.decodeFromString<List<SampleType>>(radioSettings.crossListsJson)
-    }.getOrDefault(listOf(SampleType.Track))
-
-    fun saveCrossLists(list: List<SampleType>) {
-        crossLists = list
-        val s = radioSettings.copy(
-            crossListsJson = json.encodeToString(
-                kotlinx.serialization.builtins.ListSerializer(SampleType.serializer()), list
-            )
-        )
-        saveRadioSettings(s)
-        Radio.reschedule()
+    fun addRadioSource(source: RadioSource, stations: List<RadioStation>) {
+        radioSourcesXml = radioSourcesXml + source
+        radioSources = radioSources + (source.xmlFilePath to stations)
     }
 
-    private var cachedPatternJson: String? = null
-    private var cachedPatternNodes: List<PatternNode> = emptyList()
-
-    fun loadPatternNodes(): List<PatternNode> {
-        val currentJson = radioSettings.patternJson
-        if (currentJson != cachedPatternJson) {
-            cachedPatternJson = currentJson
-            cachedPatternNodes = runCatching {
-                json.decodeFromString<List<PatternNode>>(currentJson)
-            }.getOrDefault(emptyList())
-        }
-        return cachedPatternNodes
-    }
-
-    fun savePatternNodes(nodes: List<PatternNode>) {
-        val s = radioSettings.copy(
-            patternJson = json.encodeToString(
-                kotlinx.serialization.builtins.ListSerializer(PatternNode.serializer()),
-                nodes
-            ),
-        )
-        saveRadioSettings(s)
-        cachedPatternJson = s.patternJson
-        cachedPatternNodes = nodes
-        Radio.reset()
-        Radio.reschedule()
-    }
-
-    fun saveRadioSettings(newRadioSettings: RadioSettings) {
-        val oldRadioSettings = radioSettings
-        radioSettings = newRadioSettings
-        radioMode = newRadioSettings.radioMode
-        playMode = newRadioSettings.playMode
-        if (newRadioSettings.radioMode != oldRadioSettings.radioMode)
-            Radio.buildEngine()
-        SettingsStore.saveSettings(newRadioSettings)
-    }
-
-    fun addSource(source: RadioSource, stations: List<RadioStation>) {
-        sources = sources + source
-        sourceStations = sourceStations + (source.xmlFilePath to stations)
-        SettingsStore.saveSources(sources)
-    }
-
-    fun updateSource(source: RadioSource) {
-        sources = sources.map { if (it.xmlFilePath == source.xmlFilePath) source else it }
-        SettingsStore.saveSources(sources)
-    }
-
-    fun saveSources(newSources: List<RadioSource>) {
-        sources = newSources
-        SettingsStore.saveSources(sources)
-    }
-
-    fun removeSource(xmlFilePath: String) {
-        val removedStations = sourceStations[xmlFilePath] ?: emptyList()
-        sources = sources.filter { it.xmlFilePath != xmlFilePath }
-        sourceStations = sourceStations - xmlFilePath
-        SettingsStore.saveSources(sources)
-
-        if (Radio.selectedStation in removedStations) {
-            Radio.closeStation()
+    fun updateRadioSource(source: RadioSource) {
+        radioSourcesXml = radioSourcesXml.map {
+            // 根据 xml path 判断更新指定的源
+            if (it.xmlFilePath == source.xmlFilePath) source
+            else it
         }
     }
 
-    fun findSourcePath(station: RadioStation): String? {
-        for ((xmlPath, stations) in sourceStations) {
-            if (stations.any { it === station }) {
-                return sources.find { it.xmlFilePath == xmlPath }?.audioFolderPath
-            }
-        }
-        return null
+    fun removeRadioSource(xmlFilePath: String) {
+        val removedStations = radioSources[xmlFilePath] ?: emptyList()
+
+        radioSourcesXml = radioSourcesXml.filter { it.xmlFilePath != xmlFilePath }
+        radioSources = radioSources - xmlFilePath
+
+        if (Radio.selectedStation in removedStations)
+            Radio.setStation(null)
     }
 
-    fun findSourceExtension(station: RadioStation): String {
-        for ((xmlPath, stations) in sourceStations) {
-            if (stations.any { it === station }) {
-                return sources.find { it.xmlFilePath == xmlPath }?.audioExtension ?: "wav"
-            }
-        }
-        return "wav"
-    }
-
-    /** 从已持久化的 source 列表恢复电台数据 */
+    // 从已持久化的 source 列表恢复电台数据
     fun restoreFromPaths(): Job? {
-        if (sources.isEmpty()) return null
+        if (radioSources.isEmpty()) return null
         return CoroutineScope(Dispatchers.Default).launch {
             val newStations = mutableMapOf<String, List<RadioStation>>()
-            for (source in sources) {
+            for (source in radioSourcesXml) {
                 val xml = readFileTextOrNull(source.xmlFilePath) ?: continue
                 val result = RadioXmlParser.parse(xml)
                 AudioScanner().verifyOnly(result, source.audioFolderPath)
                 newStations[source.xmlFilePath] = result.stations
             }
             withContext(Dispatchers.Main) {
-                sourceStations = newStations
+                radioSources = newStations
             }
         }
     }
 
-    fun saveLastStation(station: RadioStation) {
-        val xmlPath = sources.find { src ->
-            sourceStations[src.xmlFilePath]?.any { it === station } == true
-        }?.xmlFilePath ?: return
+    fun RadioStation.getSource(): RadioSource? {
+        for ((xmlPath, stations) in radioSources) {
+            if (stations.any { it === this })
+                return radioSourcesXml
+                    .find { it.xmlFilePath == xmlPath }
+        }
+        return null
+    }
+
+    fun saveLastStation(station: RadioStation?) {
+        if (station == null) return saveRadioSettings(
+            radioSettings.copy(
+                lastStationXmlPath = null,
+                lastStationName = null,
+            )
+        )
+
+        val source = station.getSource() ?: return
+        val xmlPath = source.xmlFilePath
         saveRadioSettings(
             radioSettings.copy(
                 lastStationXmlPath = xmlPath,

@@ -14,23 +14,10 @@ import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.key.*
-import io.github.miuzarte.fhradio.AppRuntime
-import io.github.miuzarte.fhradio.AppSettings
-import io.github.miuzarte.fhradio.AudioPlayer
-import io.github.miuzarte.fhradio.Radio
+import io.github.miuzarte.fhradio.*
 import io.github.miuzarte.fhradio.constants.UiMotion
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.cancel
-import kotlinx.coroutines.launch
-import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
-import top.yukonga.miuix.kmp.basic.NavigationBar
-import top.yukonga.miuix.kmp.basic.NavigationBarItem
-import top.yukonga.miuix.kmp.basic.Scaffold
-import top.yukonga.miuix.kmp.basic.SnackbarHost
-import top.yukonga.miuix.kmp.basic.SnackbarHostState
+import kotlinx.coroutines.*
+import top.yukonga.miuix.kmp.basic.*
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.theme.MiuixTheme.colorScheme
 
@@ -46,23 +33,22 @@ fun MainScreen() {
     DisposableEffect(Unit) {
         AppRuntime.mainPlayer = AudioPlayer()
         AppRuntime.secondaryPlayer = AudioPlayer()
-        Radio.buildEngine()
 
         val job = AppSettings.restoreFromPaths()
         val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
         scope.launch {
             job?.join()
-            val radioSettings = AppSettings.radioSettings
-            val sourceStations = AppSettings.sourceStations
+            val sourceStations = AppSettings.radioSources
 
-            if (!radioSettings.autoResume) return@launch
-            val xmlPath = radioSettings.lastStationXmlPath ?: return@launch
-            val name = radioSettings.lastStationName ?: return@launch
+            if (!AppSettings.autoResume) return@launch
+            val xmlPath = AppSettings.lastStationXmlPath ?: return@launch
+            val name = AppSettings.lastStationName ?: return@launch
             val station = sourceStations[xmlPath]?.find { it.name == name } ?: return@launch
-            Radio.openStation(station)
+            Radio.setStation(station)
         }
 
         onDispose {
+            Scheduler.dispose()
             Radio.dispose()
             AppRuntime.dispose()
             scope.cancel()

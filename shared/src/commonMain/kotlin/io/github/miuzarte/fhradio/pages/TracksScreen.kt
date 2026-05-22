@@ -20,10 +20,11 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import io.github.miuzarte.fhradio.AppRuntime
-import io.github.miuzarte.fhradio.model.SampleType
+import io.github.miuzarte.fhradio.PlayItem
+import io.github.miuzarte.fhradio.PlaySection
 import io.github.miuzarte.fhradio.Radio
-import io.github.miuzarte.fhradio.resolvePath
 import io.github.miuzarte.fhradio.constants.UiSpacing
+import io.github.miuzarte.fhradio.model.SampleType
 import io.github.miuzarte.fhradio.scaffolds.LazyColumn
 import io.github.miuzarte.fhradio.scaffolds.flowGrid
 import io.github.miuzarte.fhradio.util.fmt
@@ -33,18 +34,12 @@ import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.*
 import top.yukonga.miuix.kmp.theme.MiuixTheme.colorScheme
 
-enum class SampleTab(val label: String) {
-    Track("Track"),
-    Stinger("Stinger"),
-    DJ("DJ"),
-}
-
 @Composable
 fun TracksScreen(
     scrollBehavior: ScrollBehavior,
     bottomInnerPadding: Dp,
 ) {
-    val tabs = remember { SampleTab.entries }
+    val tabs = remember { SampleType.entries }
     var selectedTabIndex by rememberSaveable { mutableIntStateOf(0) }
     val scope = rememberCoroutineScope()
     val trackListState = rememberLazyListState()
@@ -53,27 +48,44 @@ fun TracksScreen(
 
     Scaffold(
         topBar = {
+            val station = remember(Radio.selectedStation) { Radio.selectedStation }
             TopAppBar(
                 title = "曲目",
-                subtitle = Radio.selectedStation?.name ?: "未选中电台",
+                subtitle = station?.name ?: "未选中电台",
                 color = colorScheme.surface,
                 scrollBehavior = scrollBehavior,
                 bottomContent = {
                     Column {
                         TabRow(
-                            tabs = tabs.map { it.label },
+                            tabs = tabs.map { it.toString() },
                             selectedTabIndex = selectedTabIndex,
                             onTabSelected = { index ->
                                 if (selectedTabIndex == index) {
+                                    station ?: return@TabRow
                                     // 双击随机播放
-                                    Radio.playRandomFromList(
-                                        when (index) {
-                                            0 -> SampleType.Track
-                                            1 -> SampleType.Stinger
-                                            2 -> SampleType.DJ
-                                            else -> SampleType.Track
+                                    val playSection = when (index) {
+                                        0 -> {
+                                            // Track
+                                            station.randomTrack()
+                                                ?.let { PlaySection(track = PlayItem.Track(sample = it)) }
                                         }
-                                    )
+
+                                        1 -> {
+                                            // Stinger
+                                            station.randomStinger()
+                                                ?.let { PlaySection(stinger = PlayItem.Stinger(sample = it)) }
+                                        }
+
+                                        2 -> {
+                                            // DJ
+                                            station.randomDj()
+                                                ?.let { PlaySection(dj = PlayItem.Dj(sample = it)) }
+                                        }
+
+                                        else -> null
+                                    } ?: return@TabRow
+
+                                    Radio.beginSection(playSection)
                                 } else {
                                     selectedTabIndex = index
                                 }
@@ -114,21 +126,21 @@ fun TracksScreen(
     ) { contentPadding ->
         val bottomInnerPadding = bottomInnerPadding + 64.dp
         when (tabs[selectedTabIndex]) {
-            SampleTab.Track -> TrackSampleList(
+            SampleType.Track -> TrackSampleList(
                 contentPadding = contentPadding,
                 scrollBehavior = scrollBehavior,
                 bottomInnerPadding = bottomInnerPadding,
                 listState = trackListState,
             )
 
-            SampleTab.Stinger -> StingerSampleList(
+            SampleType.Stinger -> StingerSampleList(
                 contentPadding = contentPadding,
                 scrollBehavior = scrollBehavior,
                 bottomInnerPadding = bottomInnerPadding,
                 listState = stingerListState,
             )
 
-            SampleTab.DJ -> DjSampleList(
+            SampleType.DJ -> DjSampleList(
                 contentPadding = contentPadding,
                 scrollBehavior = scrollBehavior,
                 bottomInnerPadding = bottomInnerPadding,
@@ -145,8 +157,8 @@ private fun TrackSampleList(
     bottomInnerPadding: Dp,
     listState: LazyListState,
 ) {
-    val station = Radio.selectedStation
-    val tracks = station?.tracks ?: emptyList()
+    val station = remember(Radio.selectedStation) { Radio.selectedStation }
+    val tracks = remember(station?.tracks) { station?.tracks ?: emptyList() }
 
     Box(modifier = Modifier.fillMaxSize()) {
         LazyColumn(
@@ -158,36 +170,36 @@ private fun TrackSampleList(
         ) {
             flowGrid(tracks) { _, track ->
                 station ?: return@flowGrid
-                val path = track.resolvePath()
-                val isPlaying = Radio.currentTrack == track
                 Card(
                     modifier = Modifier
-                        .then(
-                            if (path != null) Modifier.clickable { Radio.playSample(track) }
-                            else Modifier
-                        ),
+                        .clickable {
+                            runCatching {
+                                Radio.beginSection(PlaySection(track = PlayItem.Track(sample = track)))
+                            }.onFailure { e ->
+                                AppRuntime.snackbar("failed to beginSection of Track: ${e.message ?: e.toString()}")
+                            }
+                        },
                 ) {
                     Box(modifier = Modifier.fillMaxSize()) {
+                        val isPlaying = remember(Radio.trackPlaying) { Radio.trackPlaying == track }
                         Column(modifier = Modifier.fillMaxWidth().padding(UiSpacing.Large)) {
+                            val color =
+                                if (isPlaying) colorScheme.primary
+                                else colorScheme.onSurface
                             Text(
                                 track.displayName,
                                 fontWeight = FontWeight.SemiBold,
-                                color =
-                                    if (isPlaying) colorScheme.primary
-                                    else colorScheme.onSurface,
+                                color = color,
                             )
                             Text(
                                 track.artist,
                                 fontWeight = FontWeight.Normal,
-                                color =
-                                    if (isPlaying) colorScheme.primary
-                                    else colorScheme.onSurface,
+                                color = color,
                             )
                             InfoLine("SoundName", track.soundName)
                             InfoLine("Duration", track.duration.format())
                             InfoLine("SampleRate", "${track.sampleRate}Hz")
                             InfoLine("BPM", track.bpm.fmt())
-                            track.audioFilePath?.let { InfoLine("Path", it) }
                         }
                         ActiveIcon(isPlaying)
                     }
@@ -210,8 +222,8 @@ private fun StingerSampleList(
     bottomInnerPadding: Dp,
     listState: LazyListState,
 ) {
-    val station = Radio.selectedStation
-    val stingers = station?.stingers ?: emptyList()
+    val station = remember(Radio.selectedStation) { Radio.selectedStation }
+    val stingers = remember(station?.stingers) { station?.stingers ?: emptyList() }
 
     Box(modifier = Modifier.fillMaxSize()) {
         LazyColumn(
@@ -223,16 +235,18 @@ private fun StingerSampleList(
         ) {
             flowGrid(stingers) { _, stinger ->
                 station ?: return@flowGrid
-                val path = stinger.resolvePath()
-                val isPlaying = Radio.currentStinger == stinger
                 Card(
                     modifier = Modifier
-                        .then(
-                            if (path != null) Modifier.clickable { Radio.playSample(stinger) }
-                            else Modifier
-                        ),
+                        .clickable {
+                            runCatching {
+                                Radio.beginSection(PlaySection(stinger = PlayItem.Stinger(sample = stinger)))
+                            }.onFailure { e ->
+                                AppRuntime.snackbar("failed to beginSection of Stinger: ${e.message ?: e.toString()}")
+                            }
+                        },
                 ) {
                     Box(modifier = Modifier.fillMaxSize()) {
+                        val isPlaying = remember(Radio.trackPlaying) { Radio.stingerPlaying == stinger }
                         Column(modifier = Modifier.fillMaxWidth().padding(UiSpacing.Large)) {
                             Text(
                                 text = stinger.soundName,
@@ -241,10 +255,9 @@ private fun StingerSampleList(
                                     if (isPlaying) colorScheme.primary
                                     else colorScheme.onSurface,
                             )
-                            InfoLine("StartNextTrack", "${stinger.startNextTrack}")
+                            stinger.startNextTrack?.let { InfoLine("StartNextTrack", it.format()) }
                             InfoLine("Duration", stinger.duration.format())
                             InfoLine("SampleRate", "${stinger.sampleRate}Hz")
-                            stinger.audioFilePath?.let { InfoLine("Path", it) }
                         }
                         ActiveIcon(isPlaying)
                     }
@@ -267,8 +280,8 @@ private fun DjSampleList(
     bottomInnerPadding: Dp,
     listState: LazyListState,
 ) {
-    val station = Radio.selectedStation
-    val djSamples = station?.djSamples ?: emptyList()
+    val station = remember(Radio.selectedStation) { Radio.selectedStation }
+    val djSamples = remember(station?.djSamples) { station?.djSamples ?: emptyList() }
 
     Box(modifier = Modifier.fillMaxSize()) {
         LazyColumn(
@@ -280,17 +293,18 @@ private fun DjSampleList(
         ) {
             flowGrid(djSamples) { _, dj ->
                 station ?: return@flowGrid
-                val path = dj.resolvePath()
-                val state = AppRuntime.secondaryPlayer.getState()
-                val isPlaying = path != null && path == state.currentPath
                 Card(
                     modifier = Modifier
-                        .then(
-                            if (path != null) Modifier.clickable { Radio.playSample(dj) }
-                            else Modifier
-                        ),
+                        .clickable {
+                            runCatching {
+                                Radio.beginSection(PlaySection(dj = PlayItem.Dj(sample = dj)))
+                            }.onFailure { e ->
+                                AppRuntime.snackbar("failed to beginSection of DJ: ${e.message ?: e.toString()}")
+                            }
+                        },
                 ) {
                     Box(modifier = Modifier.fillMaxSize()) {
+                        val isPlaying = remember(Radio.trackPlaying) { Radio.djPlaying == dj }
                         Column(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -306,7 +320,6 @@ private fun DjSampleList(
                             InfoLine("Duration", dj.duration.format())
                             InfoLine("SampleRate", "${dj.sampleRate}Hz")
                             InfoLine("GameEvent", dj.gameEvent)
-                            dj.audioFilePath?.let { InfoLine("Path", it) }
                         }
                         ActiveIcon(isPlaying)
                     }

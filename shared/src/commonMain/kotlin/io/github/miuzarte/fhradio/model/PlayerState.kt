@@ -1,10 +1,12 @@
 package io.github.miuzarte.fhradio.model
 
+import kotlin.time.Duration
+
 data class PlayerState(
     val status: PlaybackStatus,
     val currentPath: String?,
-    val positionMs: Long,
-    val durationMs: Long,
+    val position: Duration,
+    val duration: Duration,
     val isMuted: Boolean,
     val volume: Int,
 ) {

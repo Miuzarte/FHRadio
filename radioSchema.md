@@ -94,8 +94,8 @@
 1. 切台 → 播放 Stinger (电台标识音) + 交叉淡入下一首歌
 2. 歌曲播放 → 从 TrackDrop 开始 (跳过前奏的 DJ 介绍)
 3. 主循环 → 在 TrackLoopStart ~ TrackLoopEnd 区间循环
-4. 曲中 DJ 插话 → 检查 DJSegment 标记，根据 djChance 概率插入 DJ 语音
-5. 即将结束 → 检查 StingerStart 位置，根据 stingerChance 概率插入 Stinger
+4. 曲中 DJ 插话 → 检查 DJSegment 标记，根据 djProbability 概率插入 DJ 语音
+5. 即将结束 → 检查 StingerStart 位置，根据 stingerProbability 概率插入 Stinger
 6. DJ 发音结束 (End / StartNextTrack) → 从下一首歌的 TrackDrop 衔接
 ```
 
@@ -106,7 +106,7 @@
 | Stinger 概率 | 0-100% | 10% | 每首歌结束时插入电台标识音的概率   |
 | DJ 概率      | 0-100% | 1%  | 每个 DJ 插话点实际插入语音的概率 |
 
-- 概率按百分比计算: `Random.nextInt(100) < chance` 则触发
+- 概率按百分比计算: `Random.nextInt(100) < probability` 则触发
 
 ### 4.4 DJ 时间间隔
 
