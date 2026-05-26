@@ -1,5 +1,6 @@
 package io.github.miuzarte.fhradio
 
+import androidx.compose.runtime.mutableStateListOf
 import kotlinx.coroutines.*
 import kotlin.time.Clock
 import kotlin.time.Duration
@@ -27,7 +28,7 @@ class ScheduledJob(
 
 object Scheduler {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
-    private val jobs = mutableListOf<ScheduledJob>()
+    internal val jobs = mutableStateListOf<ScheduledJob>()
 
     fun scheduleMarker(
         tag: String,
@@ -41,13 +42,19 @@ object Scheduler {
             val delay = delay
             val block = block
 
-            if (delay.isPositive()) delay(delay)
+            if (delay.isPositive())
+                delay(delay)
+            else if (delay.isNegative())
+                debugSnack("$tag has a negative delay")
+            else
+                debugSnack("$tag has a zero delay")
+
             block()
 
             scope.launch {
                 // 五秒后自动删除
                 delay(5.seconds)
-                jobs.removeAll { it.tag == tag }
+                cancel(tag, onlyWhenFired = true)
             }
         }.also {
             jobs.add(
@@ -70,29 +77,22 @@ object Scheduler {
         block = block,
     )
 
-    fun cancel(tag: String) {
+    fun cancel(tag: String, onlyWhenFired: Boolean = false) {
         jobs.removeAll {
-            val ok =
-                if (it.tag == tag) {
-                    it.cancel()
-                    true
-                } else false
-            // debugSnack("(ok:$ok)取消: $tag")
-            ok
+            if (it.tag == tag && (!onlyWhenFired || it.hasFired)) {
+                it.cancel()
+                true
+            } else false
         }
     }
 
-    fun cancel(vararg tag: String) {
+    fun cancel(vararg tag: String, onlyWhenFired: Boolean = false) {
         val tag = tag.toSet()
-
         jobs.removeAll {
-            val ok =
-                if (it.tag in tag) {
-                    it.cancel()
-                    true
-                } else false
-            // debugSnack("(ok:$ok)取消: $tag")
-            ok
+            if (it.tag in tag && (!onlyWhenFired || it.hasFired)) {
+                it.cancel()
+                true
+            } else false
         }
     }
 

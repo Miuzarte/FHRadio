@@ -31,9 +31,6 @@ enum class MainTab(val label: String, val icon: ImageVector) {
 @Composable
 fun MainScreen() {
     DisposableEffect(Unit) {
-        AppRuntime.mainPlayer = AudioPlayer()
-        AppRuntime.secondaryPlayer = AudioPlayer()
-
         val job = AppSettings.restoreFromPaths()
         val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
         scope.launch {

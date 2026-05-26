@@ -28,17 +28,17 @@ data class PlaySection(
         // }
     }
 
-    fun isStingerAndDjMutuallyExclusive(): Boolean =
-        stinger == null || dj == null
+    val isStingerAndDjMutuallyExclusive: Boolean
+        get() = stinger == null || dj == null
 
-    fun isTrackOnly(): Boolean =
-        track != null && stinger == null && dj == null
+    val isTrackOnly: Boolean
+        get() = track != null && stinger == null && dj == null
 
-    fun isTrackAndStinger(): Boolean =
-        track != null || stinger != null
+    val isTrackAndStinger: Boolean
+        get() = track != null && stinger != null
 
-    fun isTrackAndDj(): Boolean =
-        track != null || dj != null
+    val isTrackAndDj: Boolean
+        get() = track != null && dj != null
 }
 
 abstract class RadioModeEngineV2(
@@ -56,7 +56,7 @@ abstract class RadioModeEngineV2(
 
     // 返回列表和当前的索引
     // 使用双端队列时可以转为列表并固定索引为 0
-    open fun getPlayList(): Pair<List<PlaySection>, Int>? = null
+    open fun getPlayList(): Pair<List<PlaySection>, Int?>? = null
 }
 
 abstract class RadioModeEngine(

@@ -171,7 +171,7 @@ fun RadiosScreen(
                 val folder = pendingAudioPath ?: return@IconButton
                 val ordered = pendingStationOrder.mapNotNull { num -> pendingStations.find { it.number == num } }
                 AppSettings.addRadioSource(
-                    RadioSource("新电台源", path, folder, pendingStationOrder),
+                    RadioSource(pendingName, path, folder, pendingStationOrder),
                     ordered,
                 )
                 showSourceSheet = false
@@ -279,7 +279,6 @@ fun RadiosScreen(
                     onClick = {
                         AppSettings.removeRadioSource(xmlFilePath)
                         showDeleteDialog = false
-                        showManageSheet = false
                     },
                     modifier = Modifier.weight(1f),
                     colors = ButtonDefaults.textButtonColorsPrimary(),

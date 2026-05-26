@@ -12,5 +12,7 @@ expect class AudioPlayer() {
     fun stop()
     fun pause()
     fun resume()
+    fun setVolume(volume: Int): Boolean
+    fun getVolume(): Int
     fun dispose()
 }

@@ -12,6 +12,7 @@ import top.yukonga.miuix.kmp.basic.SnackbarDuration
 import kotlin.random.Random
 import kotlin.time.Clock
 import kotlin.time.Duration
+import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.nanoseconds
 import kotlin.time.Duration.Companion.seconds
 import kotlin.time.Instant
@@ -22,6 +23,7 @@ internal fun debugDo(block: () -> Unit) {
 
 internal fun debugSnack(message: String) {
     debugDo {
+        println(message)
         AppRuntime.snackbar(
             message = message,
             duration = SnackbarDuration.Long,
@@ -45,17 +47,17 @@ object Radio {
         stinger: StingerSample? = stingerPlaying,
         dj: DjSample? = djPlaying,
     ) {
-        if (selectedStation == null) return
+        selectedStation ?: return
         track?.let {
-            SettingsStore.savePlaybackState(PlaybackState(it.soundName, trackCurrentPos!!, SampleType.Track))
+            AppSettings.playbackState = PlaybackState(it.soundName, trackCurrentPos!!, SampleType.Track)
             return
         }
         stinger?.let {
-            SettingsStore.savePlaybackState(PlaybackState(it.soundName, stingerCurrentPos!!, SampleType.Track))
+            AppSettings.playbackState = PlaybackState(it.soundName, stingerCurrentPos!!, SampleType.Track)
             return
         }
         dj?.let {
-            SettingsStore.savePlaybackState(PlaybackState(it.soundName, djCurrentPos!!, SampleType.DJ))
+            AppSettings.playbackState = PlaybackState(it.soundName, djCurrentPos!!, SampleType.DJ)
             return
         }
         // 全空则无视, 留下最后的状态
@@ -107,7 +109,7 @@ object Radio {
 
         if (play) {
             modeEngine
-                ?.resume(SettingsStore.playbackState)
+                ?.resume(AppSettings.playbackState)
                 ?.let { beginSection(it) }
         }
     }
@@ -137,30 +139,32 @@ object Radio {
 
     // --- Playback control ---
 
+    private var currentSection: PlaySection? = null
+
     // 当前播放
     // 播放开始时间点
     // 播放切入点
     // 播放当前进度
 
-    var trackPlaying: TrackSample? = null
+    internal var trackPlaying: TrackSample? by mutableStateOf(null)
         private set
-    private var trackBeginInstant: Instant? = null
-    private var trackBeginPos: Duration = Duration.ZERO
-    private val trackCurrentPos: Duration?
+    internal var trackBeginInstant: Instant? = null
+    internal var trackBeginPos: Duration = Duration.ZERO
+    internal val trackCurrentPos: Duration?
         get() = trackBeginInstant?.let { trackBeginPos + (Clock.System.now() - it) }
 
-    var stingerPlaying: StingerSample? = null
+    internal var stingerPlaying: StingerSample? by mutableStateOf(null)
         private set
-    private var stingerBeginInstant: Instant? = null
-    private var stingerBeginPos: Duration = Duration.ZERO
-    private val stingerCurrentPos: Duration?
+    internal var stingerBeginInstant: Instant? = null
+    internal var stingerBeginPos: Duration = Duration.ZERO
+    internal val stingerCurrentPos: Duration?
         get() = stingerBeginInstant?.let { stingerBeginPos + (Clock.System.now() - it) }
 
-    var djPlaying: DjSample? = null
+    internal var djPlaying: DjSample? by mutableStateOf(null)
         private set
-    private var djBeginInstant: Instant? = null
-    private var djBeginPos: Duration = Duration.ZERO
-    private val djCurrentPos: Duration?
+    internal var djBeginInstant: Instant? = null
+    internal var djBeginPos: Duration = Duration.ZERO
+    internal val djCurrentPos: Duration?
         get() = djBeginInstant?.let { djBeginPos + (Clock.System.now() - it) }
 
     fun beginSample(
@@ -212,6 +216,8 @@ object Radio {
     fun stopPlayback(saveState: Boolean = true) = stopBothPlayer(saveState)
 
     private fun stopBothPlayer(saveState: Boolean = true) {
+        currentSection = null
+
         // 先停止 secondary, 使 main 之后保存状态以覆盖 secondary
         stopSecondaryPlayer(saveState)
         stopMainPlayer(saveState)
@@ -247,15 +253,33 @@ object Radio {
             RadioMode.Player -> AppSettings.crossFadeEnabled
         }
 
+    fun nextSection() {
+        val current = currentSection ?: return
+        Scheduler.cancel()
+        val next = modeEngine?.next(current) ?: return
+        beginSection(next)
+    }
+
     // 整个 section 一次性派发所有 marker
     // Track only:      Track.End
     // Track + Stinger: Track.StingerStart, Stinger.StartNextTrack
     // Track + DJ:      Track.DJStart, DJ.SampleLength
     // else:            require(isStingerAndDjMutuallyExclusive())
-    fun beginSection(section: PlaySection) {
+    fun beginSection(section: PlaySection, useTryPlay: Boolean = false) {
+        currentSection = section
+
         // Radio 继续下一段
-        fun continueNext() {
-            modeEngine?.next(section)?.let { beginSection(it) }
+        fun continueNext(useTryPlay: Boolean = false) {
+            modeEngine?.next(section)
+                ?.let {
+                    beginSection(it, useTryPlay = useTryPlay)
+                }
+                ?: run {
+                    trackBeginInstant = null
+                    stingerBeginInstant = null
+                    djBeginInstant = null
+                    return
+                }
         }
 
         fun scheduleOne(
@@ -263,112 +287,105 @@ object Radio {
             delay: Duration,
             block: () -> Unit,
         ) {
+            debugSnack("$tag scheduled in $delay")
             Scheduler.scheduleMarker(tag, delay) {
                 debugSnack("$tag triggered")
                 block()
             }
         }
 
-        fun scheduleTrackWithSecondary(
-            trackItem: PlayItem.Track,
-            secondaryItem: PlayItem,
-            trackTag: String,
-            secondaryTag: String,
-            trackPos: Duration, // track 内标记位置 (相对于 track 开始)
-            secondaryPos: Duration, // secondary 内标记位置 (相对于 secondary 开始)
-        ) {
-            val trackStartOffset = trackPos - trackItem.beginAt
-            val secondaryStartOffset = trackStartOffset + (secondaryPos - secondaryItem.beginAt)
-
-            scheduleOne(trackTag, trackStartOffset) {
-                // 开始播放 secondary
-                beginSample(secondaryItem)
-            }
-            scheduleOne(secondaryTag, secondaryStartOffset) {
-                continueNext()
-            }
-        }
-
         when {
-            section.isTrackOnly() -> {
+            section.isTrackOnly -> {
                 val track = section.track!!
-                beginSample(track)
+                beginSample(track, useTryPlay = useTryPlay)
 
                 val tag = "Track.End"
                 val delay = (-track.beginAt) + track.sample.end
-                scheduleOne(tag, delay, ::continueNext)
+                scheduleOne(tag, delay) {
+                    continueNext()
+                }
             }
 
-            section.isTrackAndStinger() -> {
+            section.isTrackAndStinger -> {
                 val track = section.track!!
                 val stinger = section.stinger!!
-                beginSample(track)
+                beginSample(track, useTryPlay = useTryPlay)
 
-                val trackTag = "Track.StingerStart"
-                val trackPos = track.sample.stingerStart ?: track.sample.duration
+                val stingerStart = track.sample.stingerStart ?: track.sample.duration
+                val stingerStartDelay = (-track.beginAt) + stingerStart
+                scheduleOne("Track.StingerStart", stingerStartDelay) {
+                    beginSample(stinger)
+                }
 
-                val (stingerTag, stingerPos) =
-                    if (stingerUseStartNextTrack) "Stinger.StartNextTrack" to
-                            (stinger.sample.startNextTrack ?: stinger.sample.end)
-                    else "Stinger.End" to stinger.sample.end
+                // 交叉淡出
+                if (stingerUseStartNextTrack) {
+                    val startNextTrack = stinger.sample.startNextTrack ?: stinger.sample.end
+                    val startNextTrackDelay = stingerStartDelay +
+                            ((-stinger.beginAt) + startNextTrack)
+                    scheduleOne("Stinger.StartNextTrack", startNextTrackDelay) {
+                        // 只切歌，不清 stingerPlaying
+                        continueNext()
+                    }
+                }
 
-                scheduleTrackWithSecondary(
-                    trackItem = track,
-                    secondaryItem = stinger,
-                    trackTag = trackTag,
-                    secondaryTag = stingerTag,
-                    trackPos = trackPos,
-                    secondaryPos = stingerPos,
-                )
+                val endDelay = stingerStartDelay +
+                        ((-stinger.beginAt) + stinger.sample.end)
+                scheduleOne("Stinger.End", endDelay) {
+                    // tryPlay 避免与 StartNextTrack 冲突
+                    continueNext(useTryPlay = true)
+                }
             }
 
-            section.isTrackAndDj() -> {
+            section.isTrackAndDj -> {
                 val track = section.track!!
                 val dj = section.dj!!
-                beginSample(track)
+                beginSample(track, useTryPlay = useTryPlay)
 
-                val trackTag = "Track.DJStart"
-                val trackPos = track.sample.stingerStart ?: track.sample.duration
+                val djStart = track.sample.djStart ?: track.sample.duration
+                val djStartDelay = (-track.beginAt) + djStart
+                scheduleOne("Track.DJStart", djStartDelay) {
+                    beginSample(dj)
+                }
 
-                val djTag = "DJ.SampleLength"
-                val djPos = dj.sample.end
-
-                scheduleTrackWithSecondary(
-                    trackItem = track,
-                    secondaryItem = dj,
-                    trackTag = trackTag,
-                    secondaryTag = djTag,
-                    trackPos = trackPos,
-                    secondaryPos = djPos,
-                )
+                val endDelay = djStartDelay + ((-dj.beginAt) + dj.sample.end)
+                scheduleOne("DJ.SampleLength", endDelay) {
+                    continueNext(useTryPlay = true)
+                }
             }
 
             else -> {
                 // 没有 Track
                 // Stinger / DJ 互斥
-                require(section.isStingerAndDjMutuallyExclusive())
+                require(section.isStingerAndDjMutuallyExclusive) { "section.isStingerAndDjMutuallyExclusive" }
 
                 when {
                     section.stinger != null -> {
                         val stinger = section.stinger
-                        beginSample(stinger)
+                        beginSample(stinger, useTryPlay = useTryPlay)
 
-                        val (tag, pos) =
-                            if (stingerUseStartNextTrack) "Stinger.StartNextTrack" to
-                                    (stinger.sample.startNextTrack ?: stinger.sample.end)
-                            else "Stinger.End" to stinger.sample.end
-                        val delay = pos - stinger.beginAt
-                        scheduleOne(tag, delay, ::continueNext)
+                        // 交叉淡出
+                        if (stingerUseStartNextTrack) {
+                            val startNextTrack = stinger.sample.startNextTrack ?: stinger.sample.end
+                            val startNextTrackDelay = (-stinger.beginAt) + startNextTrack
+                            scheduleOne("Stinger.StartNextTrack", startNextTrackDelay) {
+                                continueNext()
+                            }
+                        }
+
+                        val endDelay = (-stinger.beginAt) + stinger.sample.end
+                        scheduleOne("Stinger.End", endDelay) {
+                            continueNext(useTryPlay = true)
+                        }
                     }
 
                     section.dj != null -> {
                         val dj = section.dj
+                        beginSample(dj, useTryPlay = useTryPlay)
 
-                        beginSample(dj)
-
-                        val tag = "DJ.SampleLength"
-                        val delay = (-dj.beginAt) + (dj.sample.end)
-                        scheduleOne(tag, delay, ::continueNext)
+                        val endDelay = (-dj.beginAt) + (dj.sample.end)
+                        scheduleOne("DJ.SampleLength", endDelay) {
+                            continueNext(useTryPlay = true)
+                        }
                     }
                 }
             }

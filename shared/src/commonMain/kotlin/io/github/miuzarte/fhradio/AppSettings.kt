@@ -20,9 +20,9 @@ class SettingMutableState<T>(
     operator fun setValue(thisRef: Any?, property: KProperty<*>, value: T) {
         val old = state.value
         if (old != value) {
-            onChanged.forEach { it() }
-            onSet(old, value)   // 调用自定义逻辑
             state.value = value
+            onChanged.forEach { it() }
+            onSet(old, value) // 调用自定义逻辑
         }
     }
 }
@@ -72,6 +72,9 @@ object AppSettings {
         saveRadioSettings(radioSettings.copy(crossFadeEnabled = new))
     }
 
+    var volume by SettingMutableState(radioSettings.volume) { _, new ->
+        saveRadioSettings(radioSettings.copy(volume = new))
+    }
     var autoResume by SettingMutableState(radioSettings.autoResume) { _, new ->
         saveRadioSettings(radioSettings.copy(autoResume = new))
     }
@@ -121,7 +124,7 @@ object AppSettings {
 
     // 从已持久化的 source 列表恢复电台数据
     fun restoreFromPaths(): Job? {
-        if (radioSources.isEmpty()) return null
+        if (radioSourcesXml.isEmpty()) return null
         return CoroutineScope(Dispatchers.Default).launch {
             val newStations = mutableMapOf<String, List<RadioStation>>()
             for (source in radioSourcesXml) {

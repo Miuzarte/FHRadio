@@ -15,8 +15,8 @@ object SettingsStore {
     var radioSettings =
         RadioSettings(
             // radio
-            radioMode = RadioMode.valueOf(s.getString("radio_mode", RadioMode.Random.name)),
-            playMode = PlayMode.valueOf(s.getString("play_mode", PlayMode.Shuffle.name)),
+            radioMode = RadioMode.valueOf(s.getString("radio_mode", RadioSettings.defaults.radioMode.name)),
+            playMode = PlayMode.valueOf(s.getString("play_mode", RadioSettings.defaults.radioMode.name)),
 
             stingerProbability = s.getInt("stinger_probability", RadioSettings.defaults.stingerProbability),
             djProbability = s.getInt("dj_probability", RadioSettings.defaults.djProbability),
@@ -29,6 +29,7 @@ object SettingsStore {
             crossFadeEnabled = s.getBoolean("cross_fade_enabled", RadioSettings.defaults.crossFadeEnabled),
 
             // application
+            volume = s.getInt("volume", RadioSettings.defaults.volume),
             autoResume = s.getBoolean("auto_resume", RadioSettings.defaults.autoResume),
 
             // internal
@@ -54,6 +55,7 @@ object SettingsStore {
 
             s.putBoolean("cross_fade_enabled", settings.crossFadeEnabled)
 
+            s.putInt("volume", settings.volume)
             s.putBoolean("auto_resume", settings.autoResume)
 
             val xml = settings.lastStationXmlPath

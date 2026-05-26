@@ -113,6 +113,8 @@ actual class AudioPlayer {
 
     actual fun pause() = player.controls().setPause(true)
     actual fun resume() = player.controls().setPause(false)
+    actual fun setVolume(volume: Int) = player.audio().setVolume(volume)
+    actual fun getVolume(): Int = player.audio().volume()
     actual fun dispose() {
         player.release()
         factory.release()

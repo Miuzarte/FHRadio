@@ -3,14 +3,18 @@ package io.github.miuzarte.fhradio
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlin.time.Clock
 import top.yukonga.miuix.kmp.basic.SnackbarDuration
 import top.yukonga.miuix.kmp.basic.SnackbarHostState
 import top.yukonga.miuix.kmp.basic.SnackbarResult
+import kotlin.time.Duration.Companion.seconds
 
 object AppRuntime {
-    lateinit var mainPlayer: AudioPlayer
-    lateinit var secondaryPlayer: AudioPlayer
+    val mainPlayer = AudioPlayer()
+    val secondaryPlayer = AudioPlayer()
 
     // --- Snackbar ---
 
@@ -49,7 +53,37 @@ object AppRuntime {
     // --- Lifecycle ---
 
     fun dispose() {
-        if (::mainPlayer.isInitialized) mainPlayer.dispose()
-        if (::secondaryPlayer.isInitialized) secondaryPlayer.dispose()
+        mainPlayer.dispose()
+        secondaryPlayer.dispose()
+    }
+
+    // --- Volume sync ---
+
+    private var lastAppVolumeChangeEpochMs = 0L
+
+    fun setVolume(volume: Int) {
+        lastAppVolumeChangeEpochMs = Clock.System.now().toEpochMilliseconds()
+        mainPlayer.setVolume(volume)
+        secondaryPlayer.setVolume(volume)
+    }
+
+    private val volumeSyncJob = scope.launch(Dispatchers.Default) {
+        while (isActive) {
+            delay(1.seconds)
+            syncVolumeFromPlayers()
+        }
+    }
+
+    internal fun syncVolumeFromPlayers(force: Boolean = false) {
+        val now = Clock.System.now().toEpochMilliseconds()
+        if (!force && now - lastAppVolumeChangeEpochMs < 100) return
+
+        // 只取一个就行
+        val vol = mainPlayer.getVolume()
+        if (vol < 0) return
+
+        if (kotlin.math.abs(vol - AppSettings.volume) > 1) {
+            AppSettings.volume = vol
+        }
     }
 }

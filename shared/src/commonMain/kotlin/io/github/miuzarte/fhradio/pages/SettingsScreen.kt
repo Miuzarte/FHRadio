@@ -4,6 +4,7 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.material.icons.Icons
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.Dp
@@ -12,27 +13,42 @@ import io.github.miuzarte.fhradio.AppRuntime
 import io.github.miuzarte.fhradio.AppSettings
 import io.github.miuzarte.fhradio.BuildKonfig
 import io.github.miuzarte.fhradio.Radio
+import io.github.miuzarte.fhradio.PlaySection
+import io.github.miuzarte.fhradio.Scheduler
 import io.github.miuzarte.fhradio.constants.UiSpacing
 import io.github.miuzarte.fhradio.model.PatternNode
 import io.github.miuzarte.fhradio.model.PlayMode
 import io.github.miuzarte.fhradio.model.RadioMode
 import io.github.miuzarte.fhradio.model.SampleType
 import io.github.miuzarte.fhradio.scaffolds.*
+import io.github.miuzarte.fhradio.util.format
+import io.github.miuzarte.fhradio.util.formatTime
+import kotlinx.coroutines.isActive
 import top.yukonga.miuix.kmp.basic.*
 import top.yukonga.miuix.kmp.icon.MiuixIcons
+import top.yukonga.miuix.kmp.icon.extended.Back
 import top.yukonga.miuix.kmp.icon.extended.Delete
+import top.yukonga.miuix.kmp.icon.extended.Refresh
 import top.yukonga.miuix.kmp.overlay.OverlayBottomSheet
 import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.preference.OverlayDropdownPreference
 import top.yukonga.miuix.kmp.preference.SwitchPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme.colorScheme
 import kotlin.math.roundToInt
+import kotlin.time.Duration
 
 @Composable
 fun SettingsScreen(
     scrollBehavior: ScrollBehavior,
     bottomInnerPadding: Dp,
 ) {
+    LaunchedEffect(Unit) {
+        while (isActive) {
+            withFrameMillis {}
+            AppRuntime.syncVolumeFromPlayers(force = true)
+        }
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -75,6 +91,9 @@ fun SettingsScreen(
             mutableStateOf(AppSettings.crossFadeEnabled)
         }
 
+        var volume by remember(AppSettings.volume) {
+            mutableStateOf(AppSettings.volume.toFloat())
+        }
         val autoResume by remember(AppSettings.autoResume) {
             mutableStateOf(AppSettings.autoResume)
         }
@@ -82,6 +101,7 @@ fun SettingsScreen(
         var showPatternSheet by remember { mutableStateOf(false) }
         var showNodeEditSheet by remember { mutableStateOf(false) }
         var showPlaylistSheet by remember { mutableStateOf(false) }
+        var playList by remember { mutableStateOf<Pair<List<PlaySection>, Int?>?>(null) }
         var editingNodeIndex by remember { mutableStateOf(-1) }
 
         LazyColumn(
@@ -103,28 +123,12 @@ fun SettingsScreen(
                                 return@TabRow
                             }
                         }
+                        if (RadioMode.entries[it] == AppSettings.radioMode)
+                            Radio.reset() // 保存设置在相同时不会触发重置, 手动触发
                         AppSettings.radioMode = RadioMode.entries[it]
                     },
                 )
                 Card {
-                    // (多选 Dropdown) DJ 集合: 根据 DJ 的分类来指定循环/随机播放时包含的 DJ 列表
-                    OverlayDropdownPreference(
-                        title = "DJ 集合",
-                        entry = DropdownEntry(
-                            // TODO: 导入 RadioInfo 后再收集 GameEvent
-                            items = listOf(
-                                DropdownItem(
-                                    text = "SkillSongStart",
-                                    selected = "SkillSongStart" in listOf("SkillSongStart", "SkillSongEnd"),
-                                ),
-                                DropdownItem(
-                                    text = "SkillSongEnd",
-                                    selected = "SkillSongEnd" in listOf("SkillSongStart", "SkillSongEnd"),
-                                )
-                            )
-                        ),
-                        enabled = false,
-                    )
                     // 完全随机
                     AnimatedVisibility(isRandomMode) {
                         Column {
@@ -177,6 +181,24 @@ fun SettingsScreen(
                                         AppSettings.djProbability = djProbability
                                     }
                                 },
+                            )
+                            // DJ 集合(多选 Dropdown): 根据 DJ 的分类来指定循环/随机播放时包含的 DJ 列表
+                            OverlayDropdownPreference(
+                                title = "DJ 集合",
+                                entry = DropdownEntry(
+                                    // TODO: 导入 RadioInfo 后再收集 GameEvent
+                                    items = listOf(
+                                        DropdownItem(
+                                            text = "SkillSongStart",
+                                            selected = "SkillSongStart" in listOf("SkillSongStart", "SkillSongEnd"),
+                                        ),
+                                        DropdownItem(
+                                            text = "SkillSongEnd",
+                                            selected = "SkillSongEnd" in listOf("SkillSongStart", "SkillSongEnd"),
+                                        )
+                                    )
+                                ),
+                                enabled = false,
                             )
                         }
                     }
@@ -296,6 +318,33 @@ fun SettingsScreen(
             item {
                 SectionSmallTitle("应用")
                 Card {
+                    SuperSlider(
+                        title = "音量",
+                        value = volume,
+                        onValueChange = {
+                            volume = it
+                            AppRuntime.setVolume(it.toInt())
+                        },
+                        onValueChangeFinished = {
+                            AppSettings.volume = volume.toInt()
+                        },
+                        valueRange = 0f..100f,
+                        steps = 100,
+                        unit = "%",
+                        displayFormatter = { "${it.toInt()}" },
+                        inputInitialValue = "${AppSettings.volume}",
+                        inputFilter = { it.filter(Char::isDigit) },
+                        inputValueRange = 0f..100f,
+                        onInputConfirm = { input ->
+                            input.toIntOrNull()?.let {
+                                val v = it.coerceIn(0, 100)
+                                volume = v.toFloat()
+                                AppRuntime.setVolume(v)
+
+                                AppSettings.volume = v
+                            }
+                        },
+                    )
                     SwitchPreference(
                         title = "启动应用后自动播放",
                         summary = "应用就绪后直接开始继续播放最后选中的电台",
@@ -313,42 +362,50 @@ fun SettingsScreen(
                     Card {
                         ArrowPreference(
                             title = "查看播放列表",
-                            onClick = { showPlaylistSheet = true },
+                            onClick = {
+                                playList = Radio.getPlayList()
+                                showPlaylistSheet = true
+                            },
                             holdDownState = showPlaylistSheet,
                         )
                     }
                 }
 
-                /*
                 item {
                     SectionSmallTitle("已调度 Marker")
+
+                    var frameCount by remember { mutableStateOf(0) }
+                    LaunchedEffect(Unit) {
+                        while (true) {
+                            withFrameMillis {}
+                            frameCount++
+                        }
+                    }
+
                     Card {
                         Column(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .padding(UiSpacing.Large),
                         ) {
-                            Radio.syncDebugMarkers()
-                            Scheduler.debugMarkers.forEach { info ->
+                            @Suppress("UNUSED_EXPRESSION")
+                            frameCount
+                            Scheduler.jobs.forEach { job ->
                                 // TODO: platforms timezone
                                 // UTC+8
-                                val localMs = info.fireAt.toEpochMilliseconds() + (8 * 3600_000L)
-                                val totalSec = (localMs / 1000) % 86400
-                                val h = totalSec / 3600
-                                val m = (totalSec % 3600) / 60
-                                val s = totalSec % 60
-                                val clock = "${h}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}"
+                                val delay = job.delay
+                                val remaining = job.remaining()
+                                val scheduledAt = job.scheduledAt
                                 Text(
-                                    text = "${info.tag} @ ${info.targetPos} (${info.total.format()}) (-${info.remain.format()}) ($clock)",
+                                    text = "${job.tag} @ ${delay.format()} (-${remaining.format()}) (${scheduledAt.formatTime()})",
                                     color =
-                                        if (info.remain <= Duration.ZERO) colorScheme.primary
+                                        if (remaining <= Duration.ZERO) colorScheme.primary
                                         else colorScheme.onSurface,
                                 )
                             }
                         }
                     }
                 }
-                */
             }
         }
 
@@ -478,39 +535,51 @@ fun SettingsScreen(
             }
         }
 
-        val playList = remember(showPlaylistSheet) {
-            if (showPlaylistSheet) Radio.getPlayList()
-            else null
-        }
         OverlayBottomSheet(
             show = showPlaylistSheet,
             title = "播放列表",
-            defaultWindowInsetsPadding = false,
-            onDismissRequest = { showPlaylistSheet = false },
-        ) {
-            if (playList != null) {
-                val (sections, currentIndex) = playList
-                LazyColumn(
-                    modifier = Modifier.fillMaxWidth(),
-                    itemSpacing = UiSpacing.Large,
+            startAction = {
+                IconButton(
+                    onClick = { showPlaylistSheet = false },
                 ) {
-                    itemsIndexed(sections) { index, section ->
-                        val isCurrent = index == currentIndex
-
-                        Card(
-                            modifier = Modifier.fillMaxWidth(),
-                            colors =
-                                if (isCurrent) CardColors(
-                                    color = colorScheme.primary,
-                                    contentColor = colorScheme.onPrimary,
-                                )
-                                else CardDefaults.defaultColors(),
-                            insideMargin = PaddingValues(12.dp),
-                        ) {
-                            Text("""Track: ${section.track?.sample?.let { it.displayName + " - " + it.artist } ?: "NULL"}""")
-                            Text("""Stinger: ${section.stinger?.sample?.soundName ?: "NULL"}""")
-                            Text("""DJ: ${section.dj?.sample?.soundName ?: "NULL"}""")
-                        }
+                    Icon(
+                        imageVector = MiuixIcons.Back,
+                        contentDescription = "返回",
+                    )
+                }
+            },
+            endAction = {
+                IconButton(
+                    onClick = { playList = Radio.getPlayList() },
+                ) {
+                    Icon(
+                        imageVector = MiuixIcons.Refresh,
+                        contentDescription = "刷新",
+                    )
+                }
+            },
+            onDismissRequest = { showPlaylistSheet = false },
+            defaultWindowInsetsPadding = false,
+        ) {
+            LazyColumn(
+                modifier = Modifier.fillMaxWidth(),
+                itemSpacing = UiSpacing.Large,
+            ) {
+                val (sections, currentIndex) = playList ?: return@LazyColumn
+                itemsIndexed(sections) { index, section ->
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors =
+                            if (index == currentIndex) CardColors(
+                                color = colorScheme.primary,
+                                contentColor = colorScheme.onPrimary,
+                            )
+                            else CardDefaults.defaultColors(),
+                        insideMargin = PaddingValues(12.dp),
+                    ) {
+                        Text("""Track: ${section.track?.sample?.let { it.displayName + " - " + it.artist } ?: "NULL"}""")
+                        Text("""Stinger: ${section.stinger?.sample?.soundName ?: "NULL"}""")
+                        Text("""DJ: ${section.dj?.sample?.soundName ?: "NULL"}""")
                     }
                 }
             }

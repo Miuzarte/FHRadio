@@ -24,6 +24,7 @@ data class RadioSettings(
     val crossFadeEnabled: Boolean = true,
 
     // application
+    val volume: Int = 100,
     val autoResume: Boolean = false,
 
     // internal

@@ -109,7 +109,7 @@ class RandomEngine(
     }
 
     override fun getPlayList() =
-        playDeque.toList() to 0
+        playDeque.toList() to null
 
     // 随机数 helper
     private fun Int.roll(until: Int = 100): Boolean =
@@ -142,12 +142,8 @@ class RandomEngine(
         if (stinger != null && dj != null) {
             // 都 roll 到了, 随机去掉一个
             Random.nextBoolean()
-                .run {
-                    stinger = null
-                }
-                ?: run {
-                    dj = null
-                }
+                .run { stinger = null }
+                ?: run { dj = null }
         }
 
         return PlaySection(
@@ -155,9 +151,7 @@ class RandomEngine(
             stinger = stinger?.let { PlayItem.Stinger(it) },
             dj = dj?.let { PlayItem.Dj(it) }
         ).also {
-            require(it.isStingerAndDjMutuallyExclusive()) {
-                "FIXME: Stinger and DJ coexist"
-            }
+            require(it.isStingerAndDjMutuallyExclusive) { "FIXME: Stinger and DJ coexist" }
         }
     }
 
@@ -184,7 +178,9 @@ class RandomEngine(
     init {
         // 初始化时填充队列, 用于预览播放列表
         repeat(PLAY_DEQUE_SIZE) {
-            playDeque.addLast(rollPlaySection())
+            rollPlaySection()
+                .also { updatePlayed(it) }
+                .let { playDeque.addLast(it) }
         }
     }
 
