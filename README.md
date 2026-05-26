@@ -4,6 +4,8 @@ Forza Horizon (6) radio simulator
 
 WIP
 
+Usage: [USAGE.md](./USAGE.md)
+
 Detailed design scheme: [radioSchema.md](./radioSchema.md)
 
 ---
