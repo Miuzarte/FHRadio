@@ -50,10 +50,19 @@ object AppSettings {
     var crossListsJson by SettingMutableState(radioSettings.crossListsJson, Radio::reset) { _, new ->
         saveRadioSettings(radioSettings.copy(crossListsJson = new))
     }
-
-    // parsed
     var crossLists by SettingMutableState(radioSettings.crossLists, Radio::reset) { _, new ->
+        // parsed
         saveRadioSettings(radioSettings.withCrossLists(new))
+    }
+
+    var maxContinuousTrack by SettingMutableState(radioSettings.maxContinuousTrack, Radio::reset) { _, new ->
+        saveRadioSettings(radioSettings.copy(maxContinuousTrack = new))
+    }
+    var maxContinuousStinger by SettingMutableState(radioSettings.maxContinuousStinger, Radio::reset) { _, new ->
+        saveRadioSettings(radioSettings.copy(maxContinuousStinger = new))
+    }
+    var maxContinuousDj by SettingMutableState(radioSettings.maxContinuousDj, Radio::reset) { _, new ->
+        saveRadioSettings(radioSettings.copy(maxContinuousDj = new))
     }
 
     var patternEnabled by SettingMutableState(radioSettings.patternEnabled, Radio::reset) { _, new ->
@@ -62,9 +71,8 @@ object AppSettings {
     var patternJson by SettingMutableState(radioSettings.patternJson, Radio::reset) { _, new ->
         saveRadioSettings(radioSettings.copy(patternJson = new))
     }
-
-    // parsed
     var patternNodes by SettingMutableState(radioSettings.patternNodes, Radio::reset) { _, new ->
+        // parsed
         saveRadioSettings(radioSettings.withPatternNodes(new))
     }
 
@@ -94,7 +102,7 @@ object AppSettings {
         savePlaybackState(new)
     }
 
-    // 超级重, 不序列化, 启动时构建
+    // 超级重, 不序列化, 启动时读取 RadioInfo.xml 解析构建
     // xml path to stations
     var radioSources: Map<String, List<RadioStation>> by mutableStateOf(emptyMap())
         private set

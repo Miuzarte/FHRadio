@@ -12,13 +12,12 @@ import top.yukonga.miuix.kmp.basic.SnackbarDuration
 import kotlin.random.Random
 import kotlin.time.Clock
 import kotlin.time.Duration
-import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.nanoseconds
 import kotlin.time.Duration.Companion.seconds
 import kotlin.time.Instant
 
 internal fun debugDo(block: () -> Unit) {
-    if (BuildKonfig.DEBUG) block()
+    if (AppRuntime.debug) block()
 }
 
 internal fun debugSnack(message: String) {
@@ -81,6 +80,7 @@ object Radio {
 
         if (selectedStation == null) return // nothing to do
         modeEngine = selectEngine(selectedStation!!)
+        currentSection?.let { modeEngine?.onSectionStarted(it) }
     }
 
     fun setStation(
@@ -132,6 +132,9 @@ object Radio {
                 station = station,
                 playMode = AppSettings.playMode,
                 crossLists = AppSettings.crossLists,
+                maxContinuousTrack = AppSettings.maxContinuousTrack,
+                maxContinuousStinger = AppSettings.maxContinuousStinger,
+                maxContinuousDj = AppSettings.maxContinuousDj,
                 patternEnabled = AppSettings.patternEnabled,
                 patternNodes = AppSettings.patternNodes,
             )
@@ -255,9 +258,8 @@ object Radio {
 
     fun nextSection() {
         val current = currentSection ?: return
-        Scheduler.cancel()
         val next = modeEngine?.next(current) ?: return
-        beginSection(next)
+        beginSection(next.copy(solo = true))
     }
 
     // 整个 section 一次性派发所有 marker
@@ -266,7 +268,12 @@ object Radio {
     // Track + DJ:      Track.DJStart, DJ.SampleLength
     // else:            require(isStingerAndDjMutuallyExclusive())
     fun beginSection(section: PlaySection, useTryPlay: Boolean = false) {
+        if (section.solo) {
+            Scheduler.cancel()
+            stopBothPlayer()
+        }
         currentSection = section
+        modeEngine?.onSectionStarted(section)
 
         // Radio 继续下一段
         fun continueNext(useTryPlay: Boolean = false) {
@@ -396,10 +403,10 @@ object Radio {
     }
 }
 
-private fun Int.roll(until: Int = 100): Boolean =
+internal fun Int.roll(until: Int = 100): Boolean =
     Random.nextInt(until) < this
 
-private fun <T> Int.roll(until: Int = 100, block: () -> T): T? =
+internal fun <T> Int.roll(until: Int = 100, block: () -> T): T? =
     this.roll(until).run(block)
 
 private fun <T> Boolean.run(block: () -> T): T? =

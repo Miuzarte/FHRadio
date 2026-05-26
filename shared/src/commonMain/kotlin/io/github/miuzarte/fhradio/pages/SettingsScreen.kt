@@ -26,8 +26,10 @@ import io.github.miuzarte.fhradio.util.formatTime
 import kotlinx.coroutines.isActive
 import top.yukonga.miuix.kmp.basic.*
 import top.yukonga.miuix.kmp.icon.MiuixIcons
+import top.yukonga.miuix.kmp.icon.extended.AddCircle
 import top.yukonga.miuix.kmp.icon.extended.Back
 import top.yukonga.miuix.kmp.icon.extended.Delete
+import top.yukonga.miuix.kmp.icon.extended.Ok
 import top.yukonga.miuix.kmp.icon.extended.Refresh
 import top.yukonga.miuix.kmp.overlay.OverlayBottomSheet
 import top.yukonga.miuix.kmp.preference.ArrowPreference
@@ -61,9 +63,6 @@ fun SettingsScreen(
         val listState = rememberLazyListState()
 
         val mode by rememberUpdatedState(AppSettings.radioMode)
-        val isRandomMode = remember(mode) { mode == RadioMode.Random }
-        val isSeedMode = remember(mode) { mode == RadioMode.Seed }
-        val isPlayerMode = remember(mode) { mode == RadioMode.Player }
 
         val playMode by remember(AppSettings.playMode) {
             mutableStateOf(AppSettings.playMode)
@@ -98,6 +97,10 @@ fun SettingsScreen(
             mutableStateOf(AppSettings.autoResume)
         }
 
+        var maxContinuousTrack by remember { mutableStateOf(AppSettings.maxContinuousTrack.toFloat()) }
+        var maxContinuousStinger by remember { mutableStateOf(AppSettings.maxContinuousStinger.toFloat()) }
+        var maxContinuousDj by remember { mutableStateOf(AppSettings.maxContinuousDj.toFloat()) }
+
         var showPatternSheet by remember { mutableStateOf(false) }
         var showNodeEditSheet by remember { mutableStateOf(false) }
         var showPlaylistSheet by remember { mutableStateOf(false) }
@@ -130,7 +133,7 @@ fun SettingsScreen(
                 )
                 Card {
                     // 完全随机
-                    AnimatedVisibility(isRandomMode) {
+                    AnimatedVisibility(mode == RadioMode.Random) {
                         Column {
                             // Stinger 概率
                             SuperSlider(
@@ -203,12 +206,12 @@ fun SettingsScreen(
                         }
                     }
                     // 种子控制
-                    AnimatedVisibility(isSeedMode) {
+                    AnimatedVisibility(mode == RadioMode.Seed) {
                         Column {
                         }
                     }
                     // 播放器
-                    AnimatedVisibility(isPlayerMode) {
+                    AnimatedVisibility(mode == RadioMode.Player) {
                         Column {
                             OverlayDropdownPreference(
                                 title = "播放模式",
@@ -232,57 +235,137 @@ fun SettingsScreen(
                                 ),
                                 enabled = true,
                             )
-                            Column {
-                                // 跨列表播放
-                                OverlayDropdownPreference(
-                                    title = "跨列表播放",
-                                    entries = listOf(
-                                        DropdownEntry(
-                                            items = listOf(
-                                                DropdownItem(
-                                                    text = "Track",
-                                                    selected = SampleType.Track in crossLists,
-                                                    onClick = {
-                                                        if (SampleType.Track in crossLists && crossLists.size > 1)
-                                                            AppSettings.crossLists -= SampleType.Track
-                                                        else if (SampleType.Track !in crossLists)
-                                                            AppSettings.crossLists += SampleType.Track
-                                                    }
-                                                ),
-                                            )
+                            AnimatedVisibility(playMode == PlayMode.Shuffle || (playMode == PlayMode.Order && !patternEnabled)) {
+                                Column {
+                                    // 跨列表播放
+                                    OverlayDropdownPreference(
+                                        title = "跨列表播放",
+                                        entries = listOf(
+                                            DropdownEntry(
+                                                items = listOf(
+                                                    DropdownItem(
+                                                        text = SampleType.Track.toString(),
+                                                        selected = SampleType.Track in crossLists,
+                                                        onClick = {
+                                                            if (SampleType.Track in crossLists && crossLists.size > 1)
+                                                                AppSettings.crossLists -= SampleType.Track
+                                                            else if (SampleType.Track !in crossLists)
+                                                                AppSettings.crossLists += SampleType.Track
+                                                        }
+                                                    ),
+                                                )
+                                            ),
+                                            DropdownEntry(
+                                                items = listOf(
+                                                    DropdownItem(
+                                                        text = SampleType.Stinger.toString(),
+                                                        selected = SampleType.Stinger in crossLists,
+                                                        onClick = {
+                                                            if (SampleType.Stinger in crossLists && crossLists.size > 1)
+                                                                AppSettings.crossLists -= SampleType.Stinger
+                                                            else if (SampleType.Stinger !in crossLists)
+                                                                AppSettings.crossLists += SampleType.Stinger
+                                                        }
+                                                    ),
+                                                )
+                                            ),
+                                            DropdownEntry(
+                                                items = listOf(
+                                                    DropdownItem(
+                                                        text = SampleType.DJ.toString(),
+                                                        selected = SampleType.DJ in crossLists,
+                                                        onClick = {
+                                                            if (SampleType.DJ in crossLists && crossLists.size > 1)
+                                                                AppSettings.crossLists -= SampleType.DJ
+                                                            else if (SampleType.DJ !in crossLists)
+                                                                AppSettings.crossLists += SampleType.DJ
+                                                        }
+                                                    ),
+                                                )
+                                            ),
                                         ),
-                                        DropdownEntry(
-                                            items = listOf(
-                                                DropdownItem(
-                                                    text = "Stinger",
-                                                    selected = SampleType.Stinger in crossLists,
-                                                    onClick = {
-                                                        if (SampleType.Stinger in crossLists && crossLists.size > 1)
-                                                            AppSettings.crossLists -= SampleType.Stinger
-                                                        else if (SampleType.Stinger !in crossLists)
-                                                            AppSettings.crossLists += SampleType.Stinger
-                                                    }
-                                                ),
-                                            )
-                                        ),
-                                        DropdownEntry(
-                                            items = listOf(
-                                                DropdownItem(
-                                                    text = "DJ",
-                                                    selected = SampleType.DJ in crossLists,
-                                                    onClick = {
-                                                        if (SampleType.DJ in crossLists && crossLists.size > 1)
-                                                            AppSettings.crossLists -= SampleType.DJ
-                                                        else if (SampleType.DJ !in crossLists)
-                                                            AppSettings.crossLists += SampleType.DJ
-                                                    }
-                                                ),
-                                            )
-                                        ),
-                                    ),
-                                    collapseOnSelection = false,
-                                    enabled = playMode == PlayMode.Shuffle || !patternEnabled,
-                                )
+                                        collapseOnSelection = false,
+                                    )
+                                }
+                            }
+                            AnimatedVisibility(playMode == PlayMode.Shuffle) {
+                                Column {
+                                    // 最大连续 Track
+                                    SuperSlider(
+                                        title = "最大连续 Track",
+                                        value = maxContinuousTrack,
+                                        onValueChange = { maxContinuousTrack = it },
+                                        onValueChangeFinished = {
+                                            AppSettings.maxContinuousTrack = maxContinuousTrack.toInt()
+                                        },
+                                        enabled = SampleType.Track in crossLists,
+                                        valueRange = 0f..10f,
+                                        steps = 10 - 0 - 1,
+                                        unit = "首",
+                                        zeroStateText = "不限",
+                                        displayFormatter = { "${it.toInt()}" },
+                                        inputInitialValue = "${AppSettings.maxContinuousTrack}",
+                                        inputFilter = { it.filter(Char::isDigit) },
+                                        inputValueRange = 0f..10f,
+                                        onInputConfirm = { input ->
+                                            input.toIntOrNull()?.let {
+                                                val v = it.coerceIn(0, 10)
+                                                maxContinuousTrack = v.toFloat()
+                                                AppSettings.maxContinuousTrack = v
+                                            }
+                                        },
+                                    )
+                                    // 最大连续 Stinger
+                                    SuperSlider(
+                                        title = "最大连续 Stinger",
+                                        value = maxContinuousStinger,
+                                        onValueChange = { maxContinuousStinger = it },
+                                        onValueChangeFinished = {
+                                            AppSettings.maxContinuousStinger = maxContinuousStinger.toInt()
+                                        },
+                                        enabled = SampleType.Stinger in crossLists,
+                                        valueRange = 0f..10f,
+                                        steps = 10 - 0 - 1,
+                                        unit = "首",
+                                        zeroStateText = "不限",
+                                        displayFormatter = { "${it.toInt()}" },
+                                        inputInitialValue = "${AppSettings.maxContinuousStinger}",
+                                        inputFilter = { it.filter(Char::isDigit) },
+                                        inputValueRange = 0f..10f,
+                                        onInputConfirm = { input ->
+                                            input.toIntOrNull()?.let {
+                                                val v = it.coerceIn(0, 10)
+                                                maxContinuousStinger = v.toFloat()
+                                                AppSettings.maxContinuousStinger = v
+                                            }
+                                        },
+                                    )
+                                    // 最大连续 DJ
+                                    SuperSlider(
+                                        title = "最大连续 DJ",
+                                        value = maxContinuousDj,
+                                        onValueChange = { maxContinuousDj = it },
+                                        onValueChangeFinished = {
+                                            AppSettings.maxContinuousDj = maxContinuousDj.toInt()
+                                        },
+                                        enabled = SampleType.DJ in crossLists,
+                                        valueRange = 0f..10f,
+                                        steps = 10 - 0 - 1,
+                                        unit = "首",
+                                        zeroStateText = "不限",
+                                        displayFormatter = { "${it.toInt()}" },
+                                        inputInitialValue = "${AppSettings.maxContinuousDj}",
+                                        inputFilter = { it.filter(Char::isDigit) },
+                                        inputValueRange = 0f..10f,
+                                        onInputConfirm = { input ->
+                                            input.toIntOrNull()?.let {
+                                                val v = it.coerceIn(0, 10)
+                                                maxContinuousDj = v.toFloat()
+                                                AppSettings.maxContinuousDj = v
+                                            }
+                                        },
+                                    )
+                                }
                             }
                             AnimatedVisibility(playMode == PlayMode.Order) {
                                 Column {
@@ -356,21 +439,26 @@ fun SettingsScreen(
                 }
             }
 
-            if (BuildKonfig.DEBUG) {
-                item {
-                    SectionSmallTitle("调试")
-                    Card {
-                        ArrowPreference(
-                            title = "查看播放列表",
-                            onClick = {
-                                playList = Radio.getPlayList()
-                                showPlaylistSheet = true
-                            },
-                            holdDownState = showPlaylistSheet,
-                        )
-                    }
+            item {
+                SectionSmallTitle("调试")
+                Card {
+                    SwitchPreference(
+                        title = "启用",
+                        checked = AppRuntime.debug,
+                        onCheckedChange = { AppRuntime.debug = it },
+                    )
+                    ArrowPreference(
+                        title = "查看播放列表",
+                        onClick = {
+                            playList = Radio.getPlayList()
+                            showPlaylistSheet = true
+                        },
+                        holdDownState = showPlaylistSheet,
+                    )
                 }
+            }
 
+            if (AppRuntime.debug) {
                 item {
                     SectionSmallTitle("已调度 Marker")
 
@@ -412,23 +500,31 @@ fun SettingsScreen(
         OverlayBottomSheet(
             show = showPatternSheet,
             title = "循环模式",
-            defaultWindowInsetsPadding = false,
+            endAction = {
+                IconButton(
+                    onClick = {
+                        AppSettings.patternNodes = patternNodes.toMutableList()
+                            .also { it.add(PatternNode()) }
+                    },
+                ) {
+                    Icon(
+                        imageVector = MiuixIcons.AddCircle,
+                        contentDescription = "添加",
+                    )
+                }
+            },
             onDismissRequest = {
                 showPatternSheet = false
                 AppSettings.patternNodes = patternNodes
             },
+            defaultWindowInsetsPadding = false,
         ) {
             ReorderableList(
                 itemsProvider = {
                     patternNodes.mapIndexed { index, node ->
-                        val typeName = when (node.type) {
-                            SampleType.Track -> "Track"
-                            SampleType.Stinger -> "Stinger"
-                            SampleType.DJ -> "DJ"
-                        }
                         ReorderableList.Item(
                             id = "pn_$index",
-                            title = typeName,
+                            title = node.type.toString(),
                             subtitle = "步进: ${node.step} / 概率: ${node.probability}%",
                             onClick = {
                                 editingNodeIndex = index
@@ -450,62 +546,71 @@ fun SettingsScreen(
                     }
                 },
             ).invoke()
-            Spacer(Modifier.height(UiSpacing.Large))
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.Center,
-            ) {
-                TextButton("添加", onClick = {
-                    AppSettings.patternNodes = patternNodes.toMutableList().also {
-                        it.add(PatternNode())
-                    }
-                })
-            }
             Spacer(Modifier.height(UiSpacing.SheetBottom))
         }
 
         if (editingNodeIndex in patternNodes.indices) {
             val node = patternNodes[editingNodeIndex]
             var editType by remember(node.type) { mutableStateOf(node.type) }
-            var editStep by remember(node.step) { mutableStateOf(node.step.toString()) }
+            var editStep by remember(node.step) { mutableStateOf(node.step.toFloat()) }
             var editProb by remember(node.probability) { mutableStateOf(node.probability) }
+
+            fun saveNodeAndExit() {
+                AppSettings.patternNodes = patternNodes.toMutableList()
+                    .also {
+                        it[editingNodeIndex] = PatternNode(
+                            type = editType,
+                            step = editStep.toInt(),
+                            probability = editProb.coerceIn(0, 100),
+                        )
+                    }
+                showNodeEditSheet = false
+            }
 
             OverlayBottomSheet(
                 show = showNodeEditSheet,
                 title = "编辑节点",
-                defaultWindowInsetsPadding = false,
-                onDismissRequest = { showNodeEditSheet = false },
-            ) {
-                Column(modifier = Modifier.padding(horizontal = UiSpacing.Large)) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceEvenly,
-                    ) {
-                        listOf(SampleType.Track, SampleType.Stinger, SampleType.DJ).forEach { type ->
-                            TextButton(
-                                text = when (type) {
-                                    SampleType.Track -> "Track"
-                                    SampleType.Stinger -> "Stinger"
-                                    SampleType.DJ -> "DJ"
-                                },
-                                onClick = { editType = type },
-                            )
-                        }
+                endAction = {
+                    IconButton(onClick = ::saveNodeAndExit) {
+                        Icon(
+                            imageVector = MiuixIcons.Ok,
+                            contentDescription = "确认",
+                        )
                     }
-                    SuperTextField(
-                        value = editStep,
-                        onValueChange = { v -> editStep = v.filter { it.isDigit() }.take(4) },
-                        label = "步进",
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth(),
+                },
+                onDismissRequest = ::saveNodeAndExit,
+                defaultWindowInsetsPadding = false,
+            ) {
+                Column {
+                    TabRowWithContour(
+                        tabs = SampleType.entries.map { it.toString() },
+                        selectedTabIndex = editType.ordinal,
+                        onTabSelected = { editType = SampleType.entries[it] },
+                        modifier = Modifier
+                            .padding(horizontal = UiSpacing.Large)
+                            .padding(bottom = UiSpacing.Large),
                     )
-                    Spacer(Modifier.height(UiSpacing.Medium))
+                    SuperSlider(
+                        title = "步进",
+                        value = editStep,
+                        onValueChange = { editStep = it },
+                        valueRange = -10f..10f,
+                        steps = 10 - (-10) - 1,
+                        unit = "首",
+                        displayFormatter = { "${it.toInt()}" },
+                        inputInitialValue = "${editStep.toInt()}",
+                        inputFilter = { it.filter { ch -> ch.isDigit() || ch == '-' } },
+                        inputValueRange = Int.MIN_VALUE.toFloat()..Int.MAX_VALUE.toFloat(),
+                        onInputConfirm = { input ->
+                            input.toIntOrNull()?.let { editStep = it.toFloat() }
+                        },
+                    )
                     SuperSlider(
                         title = "概率",
                         value = editProb.toFloat(),
                         onValueChange = { editProb = it.roundToInt() },
                         valueRange = 0f..100f,
-                        steps = 100,
+                        steps = 100 - 0 - 1,
                         unit = "%",
                         displayFormatter = { "${it.toInt()}" },
                         onInputConfirm = { input ->
@@ -514,22 +619,6 @@ fun SettingsScreen(
                             }
                         },
                     )
-                    Spacer(Modifier.height(UiSpacing.Large))
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.Center,
-                    ) {
-                        TextButton("保存", onClick = {
-                            AppSettings.patternNodes = patternNodes.toMutableList().also {
-                                it[editingNodeIndex] = PatternNode(
-                                    type = editType,
-                                    step = editStep.toIntOrNull() ?: 0,
-                                    probability = editProb.toInt().coerceIn(0, 100),
-                                )
-                            }
-                            showNodeEditSheet = false
-                        })
-                    }
                 }
                 Spacer(Modifier.height(UiSpacing.SheetBottom))
             }

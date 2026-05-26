@@ -94,9 +94,9 @@ data class RadioStation(
     // "Gacha City Radio/DJ/sound_2"
     fun pathFor(sample: Sample): Path? {
         val (sampleDir, idx) = when (sample) {
-            is TrackSample -> "Track" to sortedTracks.indexOf(sample)
-            is StingerSample -> "Stinger" to stingers.indexOf(sample)
-            is DjSample -> "DJ" to djSamples.indexOf(sample)
+            is TrackSample -> SampleType.Track.toString() to sortedTracks.indexOf(sample)
+            is StingerSample -> SampleType.Stinger.toString() to stingers.indexOf(sample)
+            is DjSample -> SampleType.DJ.toString() to djSamples.indexOf(sample)
         }
         if (idx < 0) return null
         return name.toPath() / sampleDir / "sound_$idx"

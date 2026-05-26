@@ -1,5 +1,8 @@
 package io.github.miuzarte.fhradio
 
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -13,6 +16,8 @@ import top.yukonga.miuix.kmp.basic.SnackbarResult
 import kotlin.time.Duration.Companion.seconds
 
 object AppRuntime {
+    var debug by mutableStateOf(BuildKonfig.DEBUG)
+
     val mainPlayer = AudioPlayer()
     val secondaryPlayer = AudioPlayer()
 

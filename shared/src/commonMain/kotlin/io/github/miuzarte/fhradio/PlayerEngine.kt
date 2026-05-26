@@ -9,6 +9,9 @@ class PlayerEngine(
     station: RadioStation,
     val playMode: PlayMode, // shuffle / order
     val crossLists: Set<SampleType>,
+    val maxContinuousTrack: Int,
+    val maxContinuousStinger: Int,
+    val maxContinuousDj: Int,
     val patternEnabled: Boolean,
     val patternNodes: List<PatternNode>,
 ) : RadioModeEngineV2(station) {
@@ -16,40 +19,43 @@ class PlayerEngine(
     // 提供 current: 返回 current 的下一首, 到末尾时自动重建列表
     // 不提供 current: 返回自身维护的计数器的下一首
     override fun next(current: PlaySection?): PlaySection {
-        // 获取当前播放的 Sample 的 index
-        val currentIndex = current.toSample()
+        current.toSample()
             ?.let { prebuiltSampleList.indexOf(it) }
+            ?.takeIf { it >= 0 }
+            ?.let { prebuiltSampleListIndex = it }
 
-        val nextSample = prebuiltPlayListNext(
-            currentIndex?.takeIf { it > 0 }
-        )
-
-        return nextSample.toPlaySection()
+        return prebuiltPlayListNext().toPlaySection()
     }
 
     override fun resume(playbackState: PlaybackState?): PlaySection? {
         val name = playbackState?.soundName
         val pos = playbackState?.position
-        // 不需要判断 Sample 类型, prebuiltSampleList: List<Sample>
 
-        // 有名字, 找出来返回
         name?.let {
             prebuiltSampleList.withIndex()
                 .find { it.value.soundName == name }
-                ?.let {
-                    prebuiltSampleListIndex = it.index
+                ?.let { (i, sample) ->
+                    prebuiltSampleListIndex = i
                     return pos
-                        ?.let { pos -> it.value.toPlaySection(pos) }
-                        ?: it.value.toPlaySection()
+                        ?.let { pos -> sample.toPlaySection(pos) }
+                        ?: sample.toPlaySection()
                 }
         }
 
-        // 没给/没找到, 给第一首, 从头开始播放
+        prebuiltSampleListIndex = 0
         return prebuiltSampleList.firstOrNull()?.toPlaySection()
     }
 
     override fun getPlayList() =
         prebuiltSampleList.map { it.toPlaySection() } to prebuiltSampleListIndex
+
+    override fun onSectionStarted(section: PlaySection) {
+        section.toSample()?.let { sample ->
+            prebuiltSampleList.indexOf(sample).takeIf { it >= 0 }?.let {
+                prebuiltSampleListIndex = it
+            }
+        }
+    }
 
     // PlayerEngine 中 PlaySection 的三个字段互斥
     private fun PlaySection?.toSample(): Sample? =
@@ -66,35 +72,32 @@ class PlayerEngine(
 
     // 播放列表
     private var prebuiltSampleList: List<Sample> = buildPlayList()
-    private var prebuiltSampleListIndex = 0
+    private var prebuiltSampleListIndex: Int? = null
 
     private fun rebuildPlayList() {
         prebuiltSampleListIndex = 0
         prebuiltSampleList = buildPlayList()
     }
 
-    private fun prebuiltPlayListNext(overrideIndex: Int? = null): Sample {
-        overrideIndex?.let { prebuiltSampleListIndex = it }
-        return prebuiltSampleList[prebuiltSampleListIndex]
-            .also {
-                prebuiltSampleListIndex++
-                if (prebuiltSampleListIndex == prebuiltSampleList.size)
-                    rebuildPlayList() // 消费完毕后重新构建列表
-            }
+    private fun prebuiltPlayListNext(): Sample {
+        val idx = ((prebuiltSampleListIndex ?: -1) + 1) % prebuiltSampleList.size
+        if (idx == 0) rebuildPlayList()
+        prebuiltSampleListIndex = idx
+        return prebuiltSampleList[idx]
     }
 
     // 构建播放列表
-    // TODO: 实现 LoopPattern
-    private fun buildPlayList(
-        // TODO: 控制最大连续数, 0 禁用/无限制
-        // 放到类构造变量中
-        maxContinuousTrack: Int = 0,
-        maxContinuousStinger: Int = 0,
-        maxContinuousDj: Int = 0,
-    ): List<Sample> {
+    private fun buildPlayList(): List<Sample> {
+        if (patternEnabled && patternNodes.isNotEmpty()) {
+            val patternList = buildPatternPlaylist()
+            if (patternList.isNotEmpty()) return patternList
+        }
+        return buildCrossListPlaylist()
+    }
+
+    private fun buildCrossListPlaylist(): List<Sample> {
         require(crossLists.isNotEmpty()) { "crossLists can't be empty" }
 
-        // 根据 crossLists 获取待选
         val candidateSamples: Map<SampleType, List<Sample>> =
             crossLists
                 .associateWith { type ->
@@ -109,12 +112,10 @@ class PlayerEngine(
 
                 val initialCapacity = candidateSamples.values.sumOf { it.size }
                 val playList = ArrayList<Sample>(initialCapacity)
-                // 打乱并变成可变的 pool, 之后按条件一条一条抽
                 val samplePools = candidateSamples.mapValues {
                     ArrayDeque(it.value.shuffled())
                 }
 
-                // 遵循 crossLists, 不强制以 Track 开始
                 var lastType: SampleType? = null
                 var lastTypeLen = 0
 
@@ -126,16 +127,13 @@ class PlayerEngine(
                         null -> 0
                     }
 
-                    // 确定可用的池, 考虑连续限制
                     val availablePools =
                         if (limit in 1..lastTypeLen) samplePools.filterKeys { it != lastType }
                         else samplePools
 
                     val chosenPool = selectPoolByWeight(availablePools)
-                    // 忽略连续限制, 从所有非空池中加权选择
                         ?: selectPoolByWeight(samplePools)
                         ?: break
-                    // 双端队列可以使用 removeFirst
                     val picked = chosenPool.removeFirst()
 
                     if (picked.type != lastType) {
@@ -151,11 +149,48 @@ class PlayerEngine(
             }
 
             PlayMode.Order -> {
-                // Track, Stinger, DJ
                 SampleType.entries.filter { it in crossLists }
                     .flatMap { candidateSamples[it]!! }
             }
         }
+    }
+
+    private fun buildPatternPlaylist(): List<Sample> {
+        val typeLists = patternNodes.map { it.type }.toSet()
+            .associateWith { type ->
+                station.samplesFor(type)
+                    .filter { station.resolvePath(it) != null }
+            }
+            .filterValues { it.isNotEmpty() }
+
+        if (typeLists.isEmpty()) return emptyList()
+
+        val maxSize = minOf(
+            typeLists.values.sumOf { it.size * 3 },
+            384,
+        )
+
+        val playlist = mutableListOf<Sample>()
+        val typeIndices = mutableMapOf<SampleType, Int>()
+
+        while (playlist.size < maxSize) {
+            var roundAdded = false
+            for (node in patternNodes) {
+                if (playlist.size >= maxSize) break
+                if (!node.probability.roll()) continue
+
+                val list = typeLists[node.type] ?: continue
+                val idx = typeIndices[node.type]
+                    ?.let { (it + node.step).mod(list.size) }
+                    ?: 0
+                playlist.add(list[idx])
+                typeIndices[node.type] = idx
+                roundAdded = true
+            }
+            if (!roundAdded) break
+        }
+
+        return playlist
     }
 }
 

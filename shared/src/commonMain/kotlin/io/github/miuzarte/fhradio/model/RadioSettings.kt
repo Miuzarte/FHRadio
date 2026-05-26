@@ -16,10 +16,14 @@ data class RadioSettings(
     val stingerProbability: Int = 10,
     val djProbability: Int = 1,
 
-    val crossListsJson: String = """["Track"]""",
+    val crossListsJson: String = """["${SampleType.Track}"]""",
+
+    val maxContinuousTrack: Int = 0,
+    val maxContinuousStinger: Int = 1,
+    val maxContinuousDj: Int = 1,
 
     val patternEnabled: Boolean = false,
-    val patternJson: String = """[]""",
+    val patternJson: String = """[{},{"step":2},{"step":3},{"type":"Stinger"},{"step":4},{}]""",
 
     val crossFadeEnabled: Boolean = true,
 

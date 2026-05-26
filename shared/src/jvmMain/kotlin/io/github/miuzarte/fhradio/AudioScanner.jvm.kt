@@ -9,21 +9,26 @@ actual class AudioScanner {
         val results = config.stations.map { station ->
             val stationDir = File(folderPath, station.name)
             if (!stationDir.isDirectory) {
-                StationVerifyResult(station.name, false, 0, station.tracks.size, 0, station.djSamples.size, 0, station.stingers.size)
+                StationVerifyResult(
+                    station.name, false,
+                    0, station.tracks.size,
+                    0, station.stingers.size,
+                    0, station.djSamples.size,
+                )
             } else {
-                val trackDir = File(stationDir, "Track")
-                val djDir = File(stationDir, "DJ")
-                val stingerDir = File(stationDir, "Stinger")
+                val trackDir = File(stationDir, SampleType.Track.toString())
+                val stingerDir = File(stationDir, SampleType.Stinger.toString())
+                val djDir = File(stationDir, SampleType.DJ.toString())
 
                 val trackMatched = station.tracks.count { t -> hasFile(trackDir, t.soundName) != null }
-                val djCount = countAudioFiles(djDir)
                 val stingerCount = countAudioFiles(stingerDir)
+                val djCount = countAudioFiles(djDir)
 
                 StationVerifyResult(
                     station.name, true,
                     trackMatched, station.tracks.size,
-                    djCount, station.djSamples.size,
                     stingerCount, station.stingers.size,
+                    djCount, station.djSamples.size,
                 )
             }
         }

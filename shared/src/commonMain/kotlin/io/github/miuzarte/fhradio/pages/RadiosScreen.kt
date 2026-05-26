@@ -25,6 +25,7 @@ import io.github.miuzarte.fhradio.importRadio
 import io.github.miuzarte.fhradio.model.RadioSource
 import io.github.miuzarte.fhradio.model.RadioStation
 import io.github.miuzarte.fhradio.model.Sample
+import io.github.miuzarte.fhradio.model.SampleType
 import io.github.miuzarte.fhradio.scaffolds.*
 import io.github.miuzarte.fhradio.util.format
 import kotlinx.coroutines.launch
@@ -350,9 +351,18 @@ private fun StationCard(station: RadioStation, selected: Boolean, onClick: () ->
                     fontWeight = FontWeight.Bold,
                     color = if (selected) colorScheme.primary else colorScheme.onSurface
                 )
-                InfoLine("Track", "${station.tracks.size} | ${station.tracks.totalDuration()}")
-                InfoLine("Stinger", "${station.stingers.size} | ${station.stingers.totalDuration()}")
-                InfoLine("DJ", "${station.djSamples.size} | ${station.djSamples.totalDuration()}")
+                InfoLine(
+                    SampleType.Track.toString(),
+                    "${station.tracks.size} | ${station.tracks.totalDuration()}",
+                )
+                InfoLine(
+                    SampleType.Stinger.toString(),
+                    "${station.stingers.size} | ${station.stingers.totalDuration()}",
+                )
+                InfoLine(
+                    SampleType.DJ.toString(),
+                    "${station.djSamples.size} | ${station.djSamples.totalDuration()}",
+                )
             }
             ActiveIcon(selected)
         }

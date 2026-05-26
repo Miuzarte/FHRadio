@@ -26,15 +26,15 @@ object RadioXmlParser {
         val sampleLists = el.children.filter { it.name == "SampleList" }
 
         val tracks = sampleLists
-            .find { it.attr("Type") == "Track" }
+            .find { it.attr("Type") == SampleType.Track.toString() }
             ?.children?.map { buildTrack(it) } ?: emptyList()
 
         val djSamples = sampleLists
-            .find { it.attr("Type") == "DJ" }
+            .find { it.attr("Type") == SampleType.DJ.toString() }
             ?.children?.map { buildDj(it) } ?: emptyList()
 
         val stingers = sampleLists
-            .find { it.attr("Type") == "Stinger" }
+            .find { it.attr("Type") == SampleType.Stinger.toString() }
             ?.children?.map { buildStinger(it) } ?: emptyList()
 
         val playLists = el.children.filter { it.name == "PlayList" }.map { buildPlayList(it) }

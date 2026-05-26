@@ -23,6 +23,10 @@ object SettingsStore {
 
             crossListsJson = s.getString("cross_lists_json", RadioSettings.defaults.crossListsJson),
 
+            maxContinuousTrack = s.getInt("max_continuous_track", RadioSettings.defaults.maxContinuousTrack),
+            maxContinuousStinger = s.getInt("max_continuous_stinger", RadioSettings.defaults.maxContinuousStinger),
+            maxContinuousDj = s.getInt("max_continuous_dj", RadioSettings.defaults.maxContinuousDj),
+
             patternEnabled = s.getBoolean("pattern_enabled", RadioSettings.defaults.patternEnabled),
             patternJson = s.getString("pattern_json", RadioSettings.defaults.patternJson),
 
@@ -49,6 +53,10 @@ object SettingsStore {
             s.putInt("dj_probability", settings.djProbability)
 
             s.putString("cross_lists_json", settings.crossListsJson)
+
+            s.putInt("max_continuous_track", settings.maxContinuousTrack)
+            s.putInt("max_continuous_stinger", settings.maxContinuousStinger)
+            s.putInt("max_continuous_dj", settings.maxContinuousDj)
 
             s.putBoolean("pattern_enabled", settings.patternEnabled)
             s.putString("pattern_json", settings.patternJson)

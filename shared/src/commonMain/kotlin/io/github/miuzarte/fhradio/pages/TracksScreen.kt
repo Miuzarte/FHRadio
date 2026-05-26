@@ -165,15 +165,17 @@ fun TracksScreen(
                 getPlaying = { Radio.trackPlaying },
                 getCurrentPos = { Radio.trackCurrentPos },
                 playSectionFactory = { PlaySection(track = PlayItem.Track(sample = it)) },
-                errorLabel = "Track",
+                errorLabel = SampleType.Track.toString(),
                 displayContent = { sample, isPlaying ->
-                    val color = if (isPlaying) colorScheme.primary else colorScheme.onSurface
+                    val color =
+                        if (isPlaying) colorScheme.primary
+                        else colorScheme.onSurface
                     Text(sample.displayName, fontWeight = FontWeight.SemiBold, color = color)
                     Text(sample.artist, fontWeight = FontWeight.Normal, color = color)
                     InfoLine("SoundName", sample.soundName)
-                    InfoLine("Duration", sample.duration.format())
-                    InfoLine("SampleRate", "${sample.sampleRate}Hz")
                     InfoLine("BPM", sample.bpm.fmt())
+                    InfoLine("Duration", sample.duration.format())
+                    InfoLine("SampleRate", sample.sampleRate.toString())
                 },
             )
 
@@ -186,15 +188,17 @@ fun TracksScreen(
                 getPlaying = { Radio.stingerPlaying },
                 getCurrentPos = { Radio.stingerCurrentPos },
                 playSectionFactory = { PlaySection(stinger = PlayItem.Stinger(sample = it)) },
-                errorLabel = "Stinger",
+                errorLabel = SampleType.Stinger.toString(),
                 displayContent = { sample, isPlaying ->
                     Text(
                         sample.soundName, fontWeight = FontWeight.SemiBold,
-                        color = if (isPlaying) colorScheme.primary else colorScheme.onSurface,
+                        color =
+                            if (isPlaying) colorScheme.primary
+                            else colorScheme.onSurface,
                     )
                     sample.startNextTrack?.let { InfoLine("StartNextTrack", it.format()) }
                     InfoLine("Duration", sample.duration.format())
-                    InfoLine("SampleRate", "${sample.sampleRate}Hz")
+                    InfoLine("SampleRate", sample.sampleRate.toString())
                 },
             )
 
@@ -207,15 +211,17 @@ fun TracksScreen(
                 getPlaying = { Radio.djPlaying },
                 getCurrentPos = { Radio.djCurrentPos },
                 playSectionFactory = { PlaySection(dj = PlayItem.Dj(sample = it)) },
-                errorLabel = "DJ",
+                errorLabel = SampleType.DJ.toString(),
                 displayContent = { sample, isPlaying ->
                     Text(
                         sample.soundName, fontWeight = FontWeight.SemiBold,
-                        color = if (isPlaying) colorScheme.primary else colorScheme.onSurface,
+                        color =
+                            if (isPlaying) colorScheme.primary
+                            else colorScheme.onSurface,
                     )
-                    InfoLine("Duration", sample.duration.format())
-                    InfoLine("SampleRate", "${sample.sampleRate}Hz")
                     InfoLine("GameEvent", sample.gameEvent)
+                    InfoLine("Duration", sample.duration.format())
+                    InfoLine("SampleRate", sample.sampleRate.toString())
                 },
             )
         }

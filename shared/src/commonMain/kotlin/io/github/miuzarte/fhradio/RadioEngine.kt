@@ -16,6 +16,7 @@ data class PlaySection(
     val track: PlayItem.Track? = null,
     val stinger: PlayItem.Stinger? = null,
     val dj: PlayItem.Dj? = null,
+    val solo: Boolean = false,
 ) {
     init {
         require(track != null || stinger != null || dj != null) {
@@ -57,6 +58,9 @@ abstract class RadioModeEngineV2(
     // 返回列表和当前的索引
     // 使用双端队列时可以转为列表并固定索引为 0
     open fun getPlayList(): Pair<List<PlaySection>, Int?>? = null
+
+    // 用于向 Engine 同步播放状态
+    open fun onSectionStarted(section: PlaySection) {}
 }
 
 abstract class RadioModeEngine(

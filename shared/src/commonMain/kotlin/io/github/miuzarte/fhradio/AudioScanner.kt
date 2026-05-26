@@ -14,10 +14,10 @@ data class StationVerifyResult(
     val folderExists: Boolean,
     val trackMatched: Int,
     val trackTotal: Int,
-    val djCount: Int,
-    val djXmlCount: Int,
     val stingerCount: Int,
     val stingerXmlCount: Int,
+    val djCount: Int,
+    val djXmlCount: Int,
 ) {
     val matched: Boolean get() = folderExists && (trackMatched > 0 || djCount > 0 || stingerCount > 0)
     val warnings: List<String> get() = buildList {
