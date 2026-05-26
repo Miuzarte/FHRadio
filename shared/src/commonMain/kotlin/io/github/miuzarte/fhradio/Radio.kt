@@ -118,9 +118,10 @@ object Radio {
         when (AppSettings.radioMode) {
             RadioMode.Random -> RandomEngine(
                 station = station,
-                djSet = emptySet(),
                 stingerProbability = AppSettings.stingerProbability,
                 djProbability = AppSettings.djProbability,
+                djGameEvents = AppSettings.djGameEvents,
+                excludedTrackSuffixes = AppSettings.excludedTrackSuffixes,
             )
 
             RadioMode.Seed -> SeedEngine(
@@ -137,6 +138,7 @@ object Radio {
                 maxContinuousDj = AppSettings.maxContinuousDj,
                 patternEnabled = AppSettings.patternEnabled,
                 patternNodes = AppSettings.patternNodes,
+                excludedTrackSuffixes = AppSettings.excludedTrackSuffixes,
             )
         }
 

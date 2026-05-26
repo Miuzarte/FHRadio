@@ -14,6 +14,7 @@ class PlayerEngine(
     val maxContinuousDj: Int,
     val patternEnabled: Boolean,
     val patternNodes: List<PatternNode>,
+    val excludedTrackSuffixes: Set<String>,
 ) : RadioModeEngineV2(station) {
 
     // 提供 current: 返回 current 的下一首, 到末尾时自动重建列表
@@ -103,6 +104,12 @@ class PlayerEngine(
                 .associateWith { type ->
                     station.samplesFor(type)
                         .filter { station.resolvePath(it) != null }
+                        .filterNot {
+                            type == SampleType.Track &&
+                                    excludedTrackSuffixes.any { suffix ->
+                                        it.soundName.endsWith(suffix)
+                                    }
+                        }
                 }
                 .filterValues { it.isNotEmpty() }
 
@@ -160,6 +167,12 @@ class PlayerEngine(
             .associateWith { type ->
                 station.samplesFor(type)
                     .filter { station.resolvePath(it) != null }
+                    .filterNot {
+                        type == SampleType.Track &&
+                                excludedTrackSuffixes.any { suffix ->
+                                    it.soundName.endsWith(suffix)
+                                }
+                    }
             }
             .filterValues { it.isNotEmpty() }
 

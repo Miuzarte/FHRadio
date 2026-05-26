@@ -6,7 +6,9 @@ import java.io.File
 actual class AudioScanner {
 
     actual fun verifyOnly(config: RadioConfig, folderPath: String): VerifyResult {
-        val results = config.stations.map { station ->
+        val results = config.stations
+            .filterNot { it.isCrossStation }
+            .map { station ->
             val stationDir = File(folderPath, station.name)
             if (!stationDir.isDirectory) {
                 StationVerifyResult(

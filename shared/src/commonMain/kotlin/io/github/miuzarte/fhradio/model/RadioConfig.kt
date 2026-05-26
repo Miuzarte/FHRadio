@@ -88,18 +88,48 @@ data class RadioStation(
     val allSamples: List<Sample>
         get() = tracks + djSamples + stingers
 
+    fun playableTracks(excludedSuffixes: Set<String>): List<TrackSample> {
+        if (excludedSuffixes.isEmpty()) return tracks
+        return tracks.filterNot { t -> excludedSuffixes.any { t.soundName.endsWith(it) } }
+    }
+
+    // 跨电台虚拟电台 (如 Streamer Mode)
+    // 所有曲目都属于其他电台, 自身无音频文件
+    val isCrossStation: Boolean get() = tracks.isNotEmpty() && tracks.all { it.parentStation != null }
+
     // 返回相对路径, 无扩展名
-    // "Gacha City Radio/Track/sound_0"
+    // "Horizon Pulse/Track/CU1/sound_0"  (有 BankMapping 映射)
+    // "Horizon Pulse/Track/DISK/sound_3" (有 BankMapping 映射)
+    // "Gacha City Radio/Track/sound_0"   (无映射, 回退到 sortedTracks)
     // "Gacha City Radio/Stinger/sound_1"
     // "Gacha City Radio/DJ/sound_2"
+    // 虚拟电台 (Streamer Mode) 自动委托到 parentStation
     fun pathFor(sample: Sample): Path? {
-        val (sampleDir, idx) = when (sample) {
-            is TrackSample -> SampleType.Track.toString() to sortedTracks.indexOf(sample)
-            is StingerSample -> SampleType.Stinger.toString() to stingers.indexOf(sample)
-            is DjSample -> SampleType.DJ.toString() to djSamples.indexOf(sample)
+        val station = sample.parentStation ?: this
+        when (sample) {
+            is TrackSample -> {
+                val mapping = BankMapping.lookup(sample.soundName)
+                if (mapping != null) {
+                    val (bankName, idx) = mapping
+                    return station.name.toPath() / SampleType.Track.toString() / bankName / "sound_$idx"
+                }
+                val idx = station.sortedTracks.indexOfFirst { it.soundName == sample.soundName }
+                if (idx < 0) return null
+                return station.name.toPath() / SampleType.Track.toString() / "sound_$idx"
+            }
+
+            is StingerSample -> {
+                val idx = station.stingers.indexOfFirst { it.soundName == sample.soundName }
+                if (idx < 0) return null
+                return station.name.toPath() / SampleType.Stinger.toString() / "sound_$idx"
+            }
+
+            is DjSample -> {
+                val idx = station.djSamples.indexOfFirst { it.soundName == sample.soundName }
+                if (idx < 0) return null
+                return station.name.toPath() / SampleType.DJ.toString() / "sound_$idx"
+            }
         }
-        if (idx < 0) return null
-        return name.toPath() / sampleDir / "sound_$idx"
     }
 
 }

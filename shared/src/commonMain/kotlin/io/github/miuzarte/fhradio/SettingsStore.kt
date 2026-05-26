@@ -21,6 +21,8 @@ object SettingsStore {
             stingerProbability = s.getInt("stinger_probability", RadioSettings.defaults.stingerProbability),
             djProbability = s.getInt("dj_probability", RadioSettings.defaults.djProbability),
 
+            djGameEventsJson = s.getString("dj_game_events_json", RadioSettings.defaults.djGameEventsJson),
+
             crossListsJson = s.getString("cross_lists_json", RadioSettings.defaults.crossListsJson),
 
             maxContinuousTrack = s.getInt("max_continuous_track", RadioSettings.defaults.maxContinuousTrack),
@@ -31,6 +33,8 @@ object SettingsStore {
             patternJson = s.getString("pattern_json", RadioSettings.defaults.patternJson),
 
             crossFadeEnabled = s.getBoolean("cross_fade_enabled", RadioSettings.defaults.crossFadeEnabled),
+
+            excludedTrackSuffixesJson = s.getString("excluded_track_suffixes_json", RadioSettings.defaults.excludedTrackSuffixesJson),
 
             // application
             volume = s.getInt("volume", RadioSettings.defaults.volume),
@@ -52,6 +56,8 @@ object SettingsStore {
             s.putInt("stinger_probability", settings.stingerProbability)
             s.putInt("dj_probability", settings.djProbability)
 
+            s.putString("dj_game_events_json", settings.djGameEventsJson)
+
             s.putString("cross_lists_json", settings.crossListsJson)
 
             s.putInt("max_continuous_track", settings.maxContinuousTrack)
@@ -62,6 +68,8 @@ object SettingsStore {
             s.putString("pattern_json", settings.patternJson)
 
             s.putBoolean("cross_fade_enabled", settings.crossFadeEnabled)
+
+            s.putString("excluded_track_suffixes_json", settings.excludedTrackSuffixesJson)
 
             s.putInt("volume", settings.volume)
             s.putBoolean("auto_resume", settings.autoResume)

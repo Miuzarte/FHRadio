@@ -196,11 +196,12 @@ fun RadiosScreen(
                 itemsProvider = {
                     pendingStationOrder.mapNotNull { num ->
                         pendingStations.find { it.number == num }
-                    }.map { s ->
+                    }.map { station ->
+                        val playableTracks = station.playableTracks(AppSettings.excludedTrackSuffixes)
                         ReorderableList.Item(
-                            id = s.number.toString(),
-                            title = s.name,
-                            subtitle = "${s.tracks.size} 曲目 | ${s.stingers.size} Stinger | ${s.djSamples.size} DJ",
+                            id = station.number.toString(),
+                            title = station.name,
+                            subtitle = "${playableTracks.size} 曲目 | ${station.stingers.size} Stinger | ${station.djSamples.size} DJ",
                         )
                     }
                 },
@@ -316,11 +317,12 @@ fun RadiosScreen(
                     itemsProvider = {
                         editingStationOrder.mapNotNull { num ->
                             stations.find { it.number == num }
-                        }.map { s ->
+                        }.map { station ->
+                            val playableTracks = station.playableTracks(AppSettings.excludedTrackSuffixes)
                             ReorderableList.Item(
-                                id = s.number.toString(),
-                                title = s.name,
-                                subtitle = "${s.tracks.size} 曲目 | ${s.stingers.size} Stinger | ${s.djSamples.size} DJ",
+                                id = station.number.toString(),
+                                title = station.name,
+                                subtitle = "${playableTracks.size} 曲目 | ${station.stingers.size} Stinger | ${station.djSamples.size} DJ",
                             )
                         }
                     },
@@ -346,6 +348,7 @@ private fun StationCard(station: RadioStation, selected: Boolean, onClick: () ->
     Card(modifier = Modifier.clickable(onClick = onClick)) {
         Box(modifier = Modifier.fillMaxSize()) {
             Column(modifier = Modifier.fillMaxWidth().padding(UiSpacing.Large)) {
+                val playableTracks = station.playableTracks(AppSettings.excludedTrackSuffixes)
                 Text(
                     station.name,
                     fontWeight = FontWeight.Bold,
@@ -353,7 +356,7 @@ private fun StationCard(station: RadioStation, selected: Boolean, onClick: () ->
                 )
                 InfoLine(
                     SampleType.Track.toString(),
-                    "${station.tracks.size} | ${station.tracks.totalDuration()}",
+                    "${playableTracks.size} | ${playableTracks.totalDuration()}",
                 )
                 InfoLine(
                     SampleType.Stinger.toString(),

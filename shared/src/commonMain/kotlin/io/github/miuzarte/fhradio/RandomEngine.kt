@@ -6,9 +6,10 @@ import kotlin.time.Duration
 
 class RandomEngine(
     station: RadioStation,
-    val djSet: Set<String>, // TODO: DJ 集合
     val stingerProbability: Int,
     val djProbability: Int,
+    val djGameEvents: Set<String>,
+    val excludedTrackSuffixes: Set<String>,
 ) : RadioModeEngineV2(station) {
 
     // 提供 current 时返回值保证不会重复
@@ -133,11 +134,25 @@ class RandomEngine(
             }
     }
 
+    // 按后缀排除的曲目, 始终附加到 randomTrack(exclude) 中
+    private val suffixExcludedTracks: Set<TrackSample> by lazy {
+        station.tracks.filterTo(mutableSetOf()) { t ->
+            excludedTrackSuffixes.any { t.soundName.endsWith(it) }
+        }
+    }
+
+    // DJ 白名单, 非空时只播指定 gameEvent 的 DJ
+    private val djNotInWhiteList: Set<DjSample> by lazy {
+        station.djSamples.filterTo(mutableSetOf()) {
+            djGameEvents.isNotEmpty() && it.gameEvent !in djGameEvents
+        }
+    }
+
     private fun rollPlaySection(): PlaySection {
         // 一定会有 Track, 即不会连着播 Stinger / DJ
-        val track = station.randomTrack(exclude = playedTrackDeque.toSet())
+        val track = station.randomTrack(exclude = playedTrackDeque.toSet() + suffixExcludedTracks)
         var stinger = stingerProbability.roll { station.randomStinger(exclude = playedStingerDeque.toSet()) }
-        var dj = djProbability.roll { station.randomDj(exclude = playedDjDeque.toSet()) }
+        var dj = djProbability.roll { station.randomDj(exclude = playedDjDeque.toSet() + djNotInWhiteList) }
 
         if (stinger != null && dj != null) {
             // 都 roll 到了, 随机去掉一个

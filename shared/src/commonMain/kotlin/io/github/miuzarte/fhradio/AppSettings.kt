@@ -47,6 +47,24 @@ object AppSettings {
         saveRadioSettings(radioSettings.copy(djProbability = new))
     }
 
+    var djGameEventsJson by SettingMutableState(radioSettings.djGameEventsJson, Radio::reset) { _, new ->
+        saveRadioSettings(radioSettings.copy(djGameEventsJson = new))
+    }
+    var djGameEvents by SettingMutableState(radioSettings.djGameEvents, Radio::reset) { _, new ->
+        saveRadioSettings(radioSettings.withDjGameEvents(new))
+    }
+
+    val allDjGameEvents: List<String>
+        get() = radioSources.values
+            .asSequence()
+            .flatten()
+            .flatMap { it.djSamples }
+            .map { it.gameEvent }
+            .filter { it.isNotEmpty() }
+            .distinct()
+            .sorted()
+            .toList()
+
     var crossListsJson by SettingMutableState(radioSettings.crossListsJson, Radio::reset) { _, new ->
         saveRadioSettings(radioSettings.copy(crossListsJson = new))
     }
@@ -78,6 +96,16 @@ object AppSettings {
 
     var crossFadeEnabled by SettingMutableState(radioSettings.crossFadeEnabled, Radio::reset) { _, new ->
         saveRadioSettings(radioSettings.copy(crossFadeEnabled = new))
+    }
+
+    var excludedTrackSuffixesJson by SettingMutableState(
+        radioSettings.excludedTrackSuffixesJson,
+        Radio::reset
+    ) { _, new ->
+        saveRadioSettings(radioSettings.copy(excludedTrackSuffixesJson = new))
+    }
+    var excludedTrackSuffixes by SettingMutableState(radioSettings.excludedTrackSuffixes, Radio::reset) { _, new ->
+        saveRadioSettings(radioSettings.withExcludedTrackSuffixes(new))
     }
 
     var volume by SettingMutableState(radioSettings.volume) { _, new ->

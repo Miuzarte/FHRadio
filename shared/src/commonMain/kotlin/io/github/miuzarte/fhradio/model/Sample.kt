@@ -11,6 +11,7 @@ enum class SampleType : SampleSource {
     Track,
     Stinger,
     DJ,
+
 }
 
 @Serializable
@@ -22,6 +23,9 @@ sealed interface Sample {
     val durationMs: Long get() = sampleLength * 1_000L / sampleRate
     val duration: Duration get() = durationMs.milliseconds
     val end: Duration get() = ((sampleLength - 1) * 1_000L / sampleRate).milliseconds
+
+    @kotlinx.serialization.Transient
+    var parentStation: RadioStation?
 
 }
 
@@ -38,6 +42,9 @@ data class TrackSample(
     val loops: List<LoopType> = emptyList(),
     val bpms: List<BpmEntry> = emptyList(),
 ) : Sample {
+
+    @kotlinx.serialization.Transient
+    override var parentStation: RadioStation? = null
 
     private fun positionOf(type: MarkerType): Duration? =
         markers.find { it.name == type }?.position(sampleRate)
@@ -74,6 +81,9 @@ data class StingerSample(
     val markers: List<Marker> = emptyList(),
 ) : Sample {
 
+    @kotlinx.serialization.Transient
+    override var parentStation: RadioStation? = null
+
     private fun positionOf(type: MarkerType): Duration? =
         markers.find { it.name == type }?.position(sampleRate)
 
@@ -89,7 +99,12 @@ data class DjSample(
     override val sampleLength: Int,
     override val sampleRate: Int = 48000,
     val gameEvent: String = "",
-) : Sample
+) : Sample {
+
+    @kotlinx.serialization.Transient
+    override var parentStation: RadioStation? = null
+
+}
 
 @Serializable
 data class Marker(
@@ -132,6 +147,7 @@ enum class MarkerType {
     DJStart,
     End,
     StartNextTrack,
+
 }
 
 @Serializable
@@ -141,4 +157,5 @@ enum class LoopType(
 ) {
     TrackMain(MarkerType.TrackLoopStart, MarkerType.TrackLoopEnd),
     TrackPostRace(MarkerType.PostRaceLoopStart, MarkerType.PostRaceLoopEnd),
+
 }

@@ -23,6 +23,7 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import io.github.miuzarte.fhradio.AppRuntime
+import io.github.miuzarte.fhradio.AppSettings
 import io.github.miuzarte.fhradio.PlayItem
 import io.github.miuzarte.fhradio.PlaySection
 import io.github.miuzarte.fhradio.Radio
@@ -152,7 +153,7 @@ fun TracksScreen(
     ) { contentPadding ->
         val bottomInnerPadding = bottomInnerPadding + 64.dp
         val station by remember { derivedStateOf { Radio.selectedStation } }
-        val tracks by remember { derivedStateOf { station?.tracks ?: emptyList() } }
+        val tracks by remember { derivedStateOf { station?.playableTracks(AppSettings.excludedTrackSuffixes) ?: emptyList() } }
         val stingers by remember { derivedStateOf { station?.stingers ?: emptyList() } }
         val djSamples by remember { derivedStateOf { station?.djSamples ?: emptyList() } }
         when (tabs[selectedTabIndex]) {
@@ -175,7 +176,7 @@ fun TracksScreen(
                     InfoLine("SoundName", sample.soundName)
                     InfoLine("BPM", sample.bpm.fmt())
                     InfoLine("Duration", sample.duration.format())
-                    InfoLine("SampleRate", sample.sampleRate.toString())
+                    // InfoLine("SampleRate", sample.sampleRate.toString())
                 },
             )
 
@@ -198,7 +199,7 @@ fun TracksScreen(
                     )
                     sample.startNextTrack?.let { InfoLine("StartNextTrack", it.format()) }
                     InfoLine("Duration", sample.duration.format())
-                    InfoLine("SampleRate", sample.sampleRate.toString())
+                    // InfoLine("SampleRate", sample.sampleRate.toString())
                 },
             )
 
@@ -221,7 +222,7 @@ fun TracksScreen(
                     )
                     InfoLine("GameEvent", sample.gameEvent)
                     InfoLine("Duration", sample.duration.format())
-                    InfoLine("SampleRate", sample.sampleRate.toString())
+                    // InfoLine("SampleRate", sample.sampleRate.toString())
                 },
             )
         }

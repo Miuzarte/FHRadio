@@ -16,6 +16,8 @@ data class RadioSettings(
     val stingerProbability: Int = 10,
     val djProbability: Int = 1,
 
+    val djGameEventsJson: String = "[]",
+
     val crossListsJson: String = """["${SampleType.Track}"]""",
 
     val maxContinuousTrack: Int = 0,
@@ -27,6 +29,8 @@ data class RadioSettings(
 
     val crossFadeEnabled: Boolean = true,
 
+    val excludedTrackSuffixesJson: String = """["_ID","_FI","_LI"]""",
+
     // application
     val volume: Int = 100,
     val autoResume: Boolean = false,
@@ -35,6 +39,18 @@ data class RadioSettings(
     val lastStationXmlPath: String? = null,
     val lastStationName: String? = null
 ) {
+
+    // djGameEvents
+    private val parsedDjGameEvents by lazy {
+        runCatching {
+            json.decodeFromString<List<String>>(djGameEventsJson)
+        }.getOrDefault(emptyList()).toSet()
+    }
+    val djGameEvents: Set<String> get() = parsedDjGameEvents
+
+    fun withDjGameEvents(newSet: Set<String>): RadioSettings {
+        return copy(djGameEventsJson = json.encodeToString(newSet.toList()))
+    }
 
     // crossLists
     private val parsedCrossLists by lazy {
@@ -62,6 +78,19 @@ data class RadioSettings(
     fun withPatternNodes(newList: List<PatternNode>): RadioSettings {
         val newJson = json.encodeToString(newList)
         return copy(patternJson = newJson)
+    }
+
+    // excludedTrackSuffixes
+    private val parsedExcludedTrackSuffixes by lazy {
+        runCatching {
+            json.decodeFromString<List<String>>(excludedTrackSuffixesJson)
+        }.getOrDefault(emptyList()).toSet()
+    }
+    val excludedTrackSuffixes: Set<String> get() = parsedExcludedTrackSuffixes
+
+    fun withExcludedTrackSuffixes(newSet: Set<String>): RadioSettings {
+        val newJson = json.encodeToString(newSet.toList())
+        return copy(excludedTrackSuffixesJson = newJson)
     }
 
     companion object {

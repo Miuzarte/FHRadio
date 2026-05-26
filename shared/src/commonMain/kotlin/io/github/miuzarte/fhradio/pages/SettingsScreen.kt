@@ -2,6 +2,8 @@ package io.github.miuzarte.fhradio.pages
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
@@ -28,11 +30,14 @@ import top.yukonga.miuix.kmp.basic.*
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.AddCircle
 import top.yukonga.miuix.kmp.icon.extended.Back
+import top.yukonga.miuix.kmp.icon.extended.Close
 import top.yukonga.miuix.kmp.icon.extended.Delete
 import top.yukonga.miuix.kmp.icon.extended.Ok
 import top.yukonga.miuix.kmp.icon.extended.Refresh
 import top.yukonga.miuix.kmp.overlay.OverlayBottomSheet
+import top.yukonga.miuix.kmp.overlay.OverlayDialog
 import top.yukonga.miuix.kmp.preference.ArrowPreference
+import top.yukonga.miuix.kmp.preference.CheckboxPreference
 import top.yukonga.miuix.kmp.preference.OverlayDropdownPreference
 import top.yukonga.miuix.kmp.preference.SwitchPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme.colorScheme
@@ -75,6 +80,14 @@ fun SettingsScreen(
             mutableStateOf(AppSettings.djProbability)
         }
 
+        val djGameEvents by remember(AppSettings.djGameEvents) {
+            mutableStateOf(AppSettings.djGameEvents)
+        }
+        var showDjGameEventsSheet by remember { mutableStateOf(false) }
+        var editingDjGameEvents by remember(AppSettings.djGameEvents) {
+            mutableStateOf(AppSettings.djGameEvents)
+        }
+
         val crossLists by remember(AppSettings.crossLists) {
             mutableStateOf(AppSettings.crossLists)
         }
@@ -88,6 +101,15 @@ fun SettingsScreen(
 
         val crossFadeEnabled by remember(AppSettings.crossFadeEnabled) {
             mutableStateOf(AppSettings.crossFadeEnabled)
+        }
+
+        val excludedTrackSuffixes by remember(AppSettings.excludedTrackSuffixes) {
+            mutableStateOf(AppSettings.excludedTrackSuffixes)
+        }
+
+        var showExcludeSuffixDialog by remember { mutableStateOf(false) }
+        var editingExcludeSuffixes by remember(AppSettings.excludedTrackSuffixes) {
+            mutableStateOf(AppSettings.excludedTrackSuffixes)
         }
 
         var volume by remember(AppSettings.volume) {
@@ -185,23 +207,22 @@ fun SettingsScreen(
                                     }
                                 },
                             )
-                            // DJ 集合(多选 Dropdown): 根据 DJ 的分类来指定循环/随机播放时包含的 DJ 列表
-                            OverlayDropdownPreference(
+                            ArrowPreference(
                                 title = "DJ 集合",
-                                entry = DropdownEntry(
-                                    // TODO: 导入 RadioInfo 后再收集 GameEvent
-                                    items = listOf(
-                                        DropdownItem(
-                                            text = "SkillSongStart",
-                                            selected = "SkillSongStart" in listOf("SkillSongStart", "SkillSongEnd"),
-                                        ),
-                                        DropdownItem(
-                                            text = "SkillSongEnd",
-                                            selected = "SkillSongEnd" in listOf("SkillSongStart", "SkillSongEnd"),
-                                        )
+                                summary = "按 DJ.GameEvent 筛选",
+                                endActions = {
+                                    Text(
+                                        text = djGameEvents
+                                            .sorted()
+                                            .joinToString(",")
+                                            .ifEmpty { "无" },
+                                        color = colorScheme.onSurfaceVariantActions,
                                     )
-                                ),
-                                enabled = false,
+                                },
+                                onClick = {
+                                    editingDjGameEvents = djGameEvents
+                                    showDjGameEventsSheet = true
+                                },
                             )
                         }
                     }
@@ -240,50 +261,22 @@ fun SettingsScreen(
                                     // 跨列表播放
                                     OverlayDropdownPreference(
                                         title = "跨列表播放",
-                                        entries = listOf(
+                                        entries = SampleType.entries.map { type ->
                                             DropdownEntry(
                                                 items = listOf(
                                                     DropdownItem(
-                                                        text = SampleType.Track.toString(),
-                                                        selected = SampleType.Track in crossLists,
+                                                        text = type.toString(),
+                                                        selected = type in crossLists,
                                                         onClick = {
-                                                            if (SampleType.Track in crossLists && crossLists.size > 1)
-                                                                AppSettings.crossLists -= SampleType.Track
-                                                            else if (SampleType.Track !in crossLists)
-                                                                AppSettings.crossLists += SampleType.Track
-                                                        }
+                                                            if (type in crossLists && crossLists.size > 1)
+                                                                AppSettings.crossLists -= type
+                                                            else if (type !in crossLists)
+                                                                AppSettings.crossLists += type
+                                                        },
                                                     ),
-                                                )
-                                            ),
-                                            DropdownEntry(
-                                                items = listOf(
-                                                    DropdownItem(
-                                                        text = SampleType.Stinger.toString(),
-                                                        selected = SampleType.Stinger in crossLists,
-                                                        onClick = {
-                                                            if (SampleType.Stinger in crossLists && crossLists.size > 1)
-                                                                AppSettings.crossLists -= SampleType.Stinger
-                                                            else if (SampleType.Stinger !in crossLists)
-                                                                AppSettings.crossLists += SampleType.Stinger
-                                                        }
-                                                    ),
-                                                )
-                                            ),
-                                            DropdownEntry(
-                                                items = listOf(
-                                                    DropdownItem(
-                                                        text = SampleType.DJ.toString(),
-                                                        selected = SampleType.DJ in crossLists,
-                                                        onClick = {
-                                                            if (SampleType.DJ in crossLists && crossLists.size > 1)
-                                                                AppSettings.crossLists -= SampleType.DJ
-                                                            else if (SampleType.DJ !in crossLists)
-                                                                AppSettings.crossLists += SampleType.DJ
-                                                        }
-                                                    ),
-                                                )
-                                            ),
-                                        ),
+                                                ),
+                                            )
+                                        },
                                         collapseOnSelection = false,
                                     )
                                 }
@@ -395,6 +388,22 @@ fun SettingsScreen(
                             )
                         }
                     }
+                    ArrowPreference(
+                        title = "按后缀排除曲目",
+                        endActions = {
+                            Text(
+                                text = excludedTrackSuffixes
+                                    .sorted()
+                                    .joinToString(",")
+                                    .ifEmpty { "无" },
+                                color = colorScheme.onSurfaceVariantActions,
+                            )
+                        },
+                        onClick = {
+                            editingExcludeSuffixes = excludedTrackSuffixes
+                            showExcludeSuffixDialog = true
+                        },
+                    )
                 }
             }
 
@@ -430,7 +439,7 @@ fun SettingsScreen(
                     )
                     SwitchPreference(
                         title = "启动应用后自动播放",
-                        summary = "应用就绪后直接开始继续播放最后选中的电台",
+                        summary = "应用就绪后直接继续播放最后选中的电台",
                         checked = autoResume,
                         onCheckedChange = {
                             AppSettings.autoResume = it
@@ -514,8 +523,8 @@ fun SettingsScreen(
                 }
             },
             onDismissRequest = {
-                showPatternSheet = false
                 AppSettings.patternNodes = patternNodes
+                showPatternSheet = false
             },
             defaultWindowInsetsPadding = false,
         ) {
@@ -673,6 +682,87 @@ fun SettingsScreen(
                 }
             }
             Spacer(Modifier.height(UiSpacing.SheetBottom))
+        }
+
+        OverlayBottomSheet(
+            show = showDjGameEventsSheet,
+            title = "DJ 集合",
+            startAction = {
+                IconButton(onClick = { showDjGameEventsSheet = false }) {
+                    Icon(
+                        imageVector = MiuixIcons.Close,
+                        contentDescription = "取消",
+                    )
+                }
+            },
+            endAction = {
+                IconButton(
+                    onClick = {
+                        AppSettings.djGameEvents = editingDjGameEvents
+                        showDjGameEventsSheet = false
+                    }
+                ) {
+                    Icon(
+                        imageVector = MiuixIcons.Ok,
+                        contentDescription = "保存",
+                    )
+                }
+            },
+            onDismissRequest = { showDjGameEventsSheet = false },
+            defaultWindowInsetsPadding = false,
+        ) {
+            LazyColumn {
+                items(AppSettings.allDjGameEvents) { event ->
+                    CheckboxPreference(
+                        title = event,
+                        checked = event in editingDjGameEvents,
+                        onCheckedChange = { checked ->
+                            editingDjGameEvents =
+                                if (checked) editingDjGameEvents + event
+                                else editingDjGameEvents - event
+                        },
+                    )
+                }
+            }
+            Spacer(Modifier.height(UiSpacing.SheetBottom))
+        }
+
+        OverlayDialog(
+            show = showExcludeSuffixDialog,
+            title = "按后缀排除曲目",
+            onDismissRequest = { showExcludeSuffixDialog = false },
+            defaultWindowInsetsPadding = false,
+        ) {
+            Column {
+                listOf("_ID", "_FI", "_LI").forEach { suffix ->
+                    CheckboxPreference(
+                        title = suffix,
+                        checked = suffix in editingExcludeSuffixes,
+                        onCheckedChange = { checked ->
+                            editingExcludeSuffixes =
+                                if (checked) editingExcludeSuffixes + suffix
+                                else editingExcludeSuffixes - suffix
+                        },
+                    )
+                }
+                Row(horizontalArrangement = Arrangement.SpaceBetween) {
+                    TextButton(
+                        text = "取消",
+                        onClick = { showExcludeSuffixDialog = false },
+                        modifier = Modifier.weight(1f),
+                    )
+                    Spacer(Modifier.width(20.dp))
+                    TextButton(
+                        text = "确定",
+                        onClick = {
+                            AppSettings.excludedTrackSuffixes = editingExcludeSuffixes
+                            showExcludeSuffixDialog = false
+                        },
+                        modifier = Modifier.weight(1f),
+                        colors = ButtonDefaults.textButtonColorsPrimary(),
+                    )
+                }
+            }
         }
     }
 }

@@ -15,6 +15,28 @@ object RadioXmlParser {
             .children
             .map { buildStation(it) }
 
+        // 虚拟电台 (如 Streamer Mode) 回填 parentStation
+        val nameToStation = mutableMapOf<String, RadioStation>()
+        stations.forEach { s ->
+            s.tracks.forEach { nameToStation.getOrPut(it.soundName) { s } }
+            s.stingers.forEach { nameToStation.getOrPut(it.soundName) { s } }
+            s.djSamples.forEach { nameToStation.getOrPut(it.soundName) { s } }
+        }
+        stations.forEach { s ->
+            s.tracks.forEach { sample ->
+                val parent = nameToStation[sample.soundName]
+                if (parent != null && parent !== s) sample.parentStation = parent
+            }
+            s.stingers.forEach { sample ->
+                val parent = nameToStation[sample.soundName]
+                if (parent != null && parent !== s) sample.parentStation = parent
+            }
+            s.djSamples.forEach { sample ->
+                val parent = nameToStation[sample.soundName]
+                if (parent != null && parent !== s) sample.parentStation = parent
+            }
+        }
+
         return RadioConfig(version, djInterval, recentSize, stations)
     }
 

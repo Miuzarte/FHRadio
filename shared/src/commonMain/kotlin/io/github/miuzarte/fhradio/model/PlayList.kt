@@ -18,10 +18,12 @@ enum class PlayListType : SampleSource {
     FreeRoam,
     Event,
     ShortStinger,
+
 }
 
 @Serializable
 enum class PlayMode {
     Shuffle,
     Order,
+
 }
