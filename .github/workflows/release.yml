@@ -76,7 +76,9 @@ jobs:
         if: ${{ matrix.target == 'desktop' }}
         shell: pwsh
         run: |
-          $appDir = Get-ChildItem -Path desktopApp/build/compose/binaries -Recurse -Directory -Filter app | Select-Object -First 1
+          $appDir = Get-ChildItem -Path desktopApp/build/compose/binaries -Recurse -Directory -Filter app |
+            ForEach-Object { Get-ChildItem -Path $_.FullName -Directory } |
+            Select-Object -First 1
           $vlcDir = "$($appDir.FullName)/vlc"
           New-Item -ItemType Directory -Force -Path $vlcDir | Out-Null
           $vlcUrl = "https://download.videolan.org/pub/videolan/vlc/3.0.23/win64/vlc-3.0.23-win64.zip"
@@ -97,7 +99,9 @@ jobs:
               Copy-Item $apk.FullName "$out/ci-$($apk.Name)"
             }
           } else {
-            $appDir = Get-ChildItem -Path desktopApp/build/compose/binaries -Recurse -Directory -Filter app | Select-Object -First 1
+            $appDir = Get-ChildItem -Path desktopApp/build/compose/binaries -Recurse -Directory -Filter app |
+              ForEach-Object { Get-ChildItem -Path $_.FullName -Directory } |
+              Select-Object -First 1
             Compress-Archive -Path "$($appDir.FullName)/*" -DestinationPath "$out/ci-FHRadio-win64.zip"
           }
 
@@ -194,7 +198,9 @@ jobs:
               Copy-Item $apk.FullName "dist/FHRadio-${tag}-$($apk.Name)"
             }
           } else {
-            $appDir = Get-ChildItem -Path desktopApp/build/compose/binaries -Recurse -Directory -Filter app | Select-Object -First 1
+            $appDir = Get-ChildItem -Path desktopApp/build/compose/binaries -Recurse -Directory -Filter app |
+              ForEach-Object { Get-ChildItem -Path $_.FullName -Directory } |
+              Select-Object -First 1
             Compress-Archive -Path "$($appDir.FullName)/*" -DestinationPath "dist/FHRadio-win64-${tag}.zip"
           }
 

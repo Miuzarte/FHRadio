@@ -24,5 +24,10 @@ compose.desktop {
             packageName = "io.github.miuzarte.fhradio"
             packageVersion = "1.0.0"
         }
+
+        buildTypes.release.proguard {
+            version = libs.versions.proguard.get()
+            configurationFiles.from(project.file("../compose-desktop-rules.pro"))
+        }
     }
 }
