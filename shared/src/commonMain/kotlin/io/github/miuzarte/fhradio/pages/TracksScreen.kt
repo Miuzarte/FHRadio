@@ -3,6 +3,7 @@
 package io.github.miuzarte.fhradio.pages
 
 import androidx.compose.animation.*
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyListState
@@ -16,30 +17,27 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import io.github.miuzarte.fhradio.AppRuntime
-import io.github.miuzarte.fhradio.AppSettings
-import io.github.miuzarte.fhradio.PlayItem
-import io.github.miuzarte.fhradio.PlaySection
-import io.github.miuzarte.fhradio.Radio
-import io.github.miuzarte.fhradio.Scheduler
+import io.github.miuzarte.fhradio.*
 import io.github.miuzarte.fhradio.constants.UiSpacing
-import io.github.miuzarte.fhradio.model.SampleType
 import io.github.miuzarte.fhradio.model.Sample
+import io.github.miuzarte.fhradio.model.SampleType
 import io.github.miuzarte.fhradio.scaffolds.LazyColumn
 import io.github.miuzarte.fhradio.scaffolds.flowGrid
 import io.github.miuzarte.fhradio.util.fmt
 import io.github.miuzarte.fhradio.util.format
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import kotlin.time.Duration
 import top.yukonga.miuix.kmp.basic.*
 import top.yukonga.miuix.kmp.theme.MiuixTheme.colorScheme
+import kotlin.time.Duration
 
 @Composable
 fun TracksScreen(
@@ -52,6 +50,14 @@ fun TracksScreen(
     val trackListState = rememberLazyListState()
     val stingerListState = rememberLazyListState()
     val djListState = rememberLazyListState()
+
+    var frameCount by remember { mutableIntStateOf(0) }
+    LaunchedEffect(Unit) {
+        while (true) {
+            withFrameMillis {}
+            frameCount++
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -104,6 +110,42 @@ fun TracksScreen(
                             height = 48.dp,
                             itemSpacing = UiSpacing.Medium,
                         )
+                        AnimatedVisibility(scrollBehavior.state.collapsedFraction < 0.3f) {
+                            Column {
+                                Radio.trackPlaying?.let { track ->
+                                    val currentPos = Radio.trackCurrentPos
+                                    val isPlaying = track.durationMs > 0L
+                                            && currentPos?.let { it < track.duration } ?: true
+                                    if (isPlaying) {
+                                        @Suppress("UNUSED_EXPRESSION")
+                                        frameCount
+                                        val progress = currentPos
+                                            ?.let { (it / track.duration).toFloat().coerceIn(0f, 1f) }
+                                            ?: 0f
+                                        Text(
+                                            text = "${track.displayName} - ${track.artist}",
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(bottom = 6.dp),
+                                            textAlign = TextAlign.Center,
+                                            maxLines = 1,
+                                        )
+                                        Box(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .height(6.dp),
+                                        ) {
+                                            Box(
+                                                modifier = Modifier
+                                                    .fillMaxHeight()
+                                                    .fillMaxWidth(progress)
+                                                    .background(colorScheme.primary),
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
                     }
                 },
             )
@@ -153,7 +195,11 @@ fun TracksScreen(
     ) { contentPadding ->
         val bottomInnerPadding = bottomInnerPadding + 64.dp
         val station by remember { derivedStateOf { Radio.selectedStation } }
-        val tracks by remember { derivedStateOf { station?.playableTracks(AppSettings.excludedTrackSuffixes) ?: emptyList() } }
+        val tracks by remember {
+            derivedStateOf {
+                station?.playableTracks(AppSettings.excludedTrackSuffixes) ?: emptyList()
+            }
+        }
         val stingers by remember { derivedStateOf { station?.stingers ?: emptyList() } }
         val djSamples by remember { derivedStateOf { station?.djSamples ?: emptyList() } }
         when (tabs[selectedTabIndex]) {
@@ -240,7 +286,7 @@ private fun <T : Sample> SampleCardList(
     getCurrentPos: () -> Duration?,
     playSectionFactory: (T) -> PlaySection,
     errorLabel: String,
-    displayContent: @Composable (T, Boolean) -> Unit,
+    displayContent: @Composable ColumnScope.(T, Boolean) -> Unit,
 ) {
     var frameCount by remember { mutableIntStateOf(0) }
     LaunchedEffect(Unit) {
@@ -274,21 +320,22 @@ private fun <T : Sample> SampleCardList(
                     val isPlaying = isActiveCard && sample.durationMs > 0L &&
                             getCurrentPos()?.let { it < sample.duration } ?: true
                     Box(modifier = Modifier.fillMaxSize()) {
-                        Column(modifier = Modifier.fillMaxWidth().padding(UiSpacing.Large)) {
-                            displayContent(sample, isPlaying)
-                        }
                         if (isPlaying) {
                             @Suppress("UNUSED_EXPRESSION")
                             frameCount
                             val progress = getCurrentPos()
                                 ?.let { (it / sample.duration).toFloat().coerceIn(0f, 1f) }
                                 ?: 0f
-                            LinearProgressIndicator(
-                                progress = progress,
+                            Box(
                                 modifier = Modifier
-                                    .align(Alignment.BottomCenter)
-                                    .fillMaxWidth(),
+                                    .fillMaxHeight()
+                                    .fillMaxWidth(progress)
+                                    .alpha(0.1f)
+                                    .background(colorScheme.primary),
                             )
+                        }
+                        Column(modifier = Modifier.fillMaxWidth().padding(UiSpacing.Large)) {
+                            displayContent(sample, isPlaying)
                         }
                         ActiveIcon(isPlaying)
                     }

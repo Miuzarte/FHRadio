@@ -3,6 +3,7 @@ package io.github.miuzarte.fhradio.scaffolds
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.key
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.Dp
@@ -54,12 +55,14 @@ fun <T> LazyListScope.flowGrid(
                         horizontalArrangement = Arrangement.spacedBy(spacing),
                     ) {
                         rowEntries.forEach { (index, item) ->
-                            Box(
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .fillMaxHeight(),
-                            ) {
-                                itemContent(index, item)
+                            key(index) {
+                                Box(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .fillMaxHeight(),
+                                ) {
+                                    itemContent(index, item)
+                                }
                             }
                         }
                         repeat(columns - rowEntries.size) {
