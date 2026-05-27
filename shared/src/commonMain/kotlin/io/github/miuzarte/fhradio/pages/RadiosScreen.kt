@@ -6,6 +6,7 @@ import androidx.compose.animation.*
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.CheckCircleOutline
 import androidx.compose.material.icons.rounded.Settings
@@ -14,26 +15,28 @@ import androidx.compose.material.icons.rounded.VisibilityOff
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import io.github.miuzarte.fhradio.AppSettings
-import io.github.miuzarte.fhradio.ImportResult
-import io.github.miuzarte.fhradio.Radio
+import io.github.miuzarte.fhradio.*
 import io.github.miuzarte.fhradio.constants.UiSpacing
-import io.github.miuzarte.fhradio.importRadio
 import io.github.miuzarte.fhradio.model.RadioSource
 import io.github.miuzarte.fhradio.model.RadioStation
 import io.github.miuzarte.fhradio.model.Sample
 import io.github.miuzarte.fhradio.model.SampleType
 import io.github.miuzarte.fhradio.scaffolds.*
+import io.github.miuzarte.fhradio.ui.contextClick
 import io.github.miuzarte.fhradio.util.format
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.*
 import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.extended.*
+import top.yukonga.miuix.kmp.icon.extended.Delete
+import top.yukonga.miuix.kmp.icon.extended.Import
+import top.yukonga.miuix.kmp.icon.extended.More
 import top.yukonga.miuix.kmp.menu.OverlayIconDropdownMenu
 import top.yukonga.miuix.kmp.overlay.OverlayBottomSheet
 import top.yukonga.miuix.kmp.overlay.OverlayDialog
@@ -45,17 +48,15 @@ fun RadiosScreen(
     scrollBehavior: ScrollBehavior,
     bottomInnerPadding: Dp,
 ) {
+    val haptic = LocalHapticFeedback.current
+
     val station by rememberUpdatedState(Radio.selectedStation)
     val scope = rememberCoroutineScope()
     var parseError by remember { mutableStateOf<String?>(null) }
 
-    // 导入电台源
-    var showSourceSheet by remember { mutableStateOf(false) }
-    var pendingName by remember { mutableStateOf("新电台源") }
-    var pendingXmlPath by remember { mutableStateOf<String?>(null) }
-    var pendingAudioPath by remember { mutableStateOf<String?>(null) }
-    var pendingStationOrder by remember { mutableStateOf<List<Int>>(emptyList()) }
-    var pendingStations by remember { mutableStateOf<List<RadioStation>>(emptyList()) }
+    LaunchedEffect(parseError) {
+        parseError?.let { AppRuntime.snackbar(it) }
+    }
 
     // 电台源管理
     var showManageSheet by remember { mutableStateOf(false) }
@@ -86,12 +87,15 @@ fun RadiosScreen(
                                                 when (val result = importRadio()) {
                                                     is ImportResult.Cancelled -> parseError = "已取消导入"
                                                     is ImportResult.Success -> {
-                                                        pendingName = "新电台源"
-                                                        pendingXmlPath = result.xmlPath
-                                                        pendingAudioPath = result.audioPath
-                                                        pendingStationOrder = result.config.stations.map { it.number }
-                                                        pendingStations = result.config.stations
-                                                        showSourceSheet = true
+                                                        val source = RadioSource(
+                                                            name = "新电台源",
+                                                            xmlFilePath = result.xmlPath,
+                                                            audioFolderPath = result.audioPath,
+                                                            stationOrder = result.config.stations.map { it.number },
+                                                        )
+                                                        AppSettings.addRadioSource(source, result.config.stations)
+                                                        editingSource = source
+                                                        showStationOrderSheet = true
                                                     }
                                                 }
                                             } catch (e: Exception) {
@@ -163,11 +167,11 @@ fun RadiosScreen(
                             station = station,
                             selected = isSelected,
                             onClick = {
-                                if (isSelected) Radio.setStation(
-                                    station = null,
-                                )
-                                else Radio.setStation(
-                                    station = station,
+                                haptic.contextClick()
+                                Radio.setStation(
+                                    station =
+                                        if (isSelected) null
+                                        else station,
                                 )
                             },
                         )
@@ -180,65 +184,6 @@ fun RadiosScreen(
                 modifier = Modifier.align(Alignment.CenterEnd).fillMaxHeight(),
                 trackPadding = contentPadding,
             )
-        }
-    }
-
-    OverlayBottomSheet(
-        show = showSourceSheet,
-        title = "新建电台源",
-        startAction = {
-            IconButton(onClick = { showSourceSheet = false }) {
-                Icon(imageVector = MiuixIcons.Close, contentDescription = "取消")
-            }
-        },
-        endAction = {
-            IconButton(
-                onClick = {
-                    val path = pendingXmlPath ?: return@IconButton
-                    val folder = pendingAudioPath ?: return@IconButton
-                    val ordered = pendingStationOrder.mapNotNull { num -> pendingStations.find { it.number == num } }
-                    AppSettings.addRadioSource(
-                        RadioSource(pendingName, path, folder, pendingStationOrder),
-                        ordered,
-                    )
-                    showSourceSheet = false
-                },
-            ) {
-                Icon(imageVector = MiuixIcons.Ok, contentDescription = "完成")
-            }
-        },
-        onDismissRequest = { showSourceSheet = false },
-        defaultWindowInsetsPadding = false,
-    ) {
-        Column(modifier = Modifier.padding(horizontal = UiSpacing.Large)) {
-            TextField(
-                value = pendingName,
-                onValueChange = { pendingName = it },
-                label = "源名称",
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth(),
-            )
-            Spacer(Modifier.height(12.dp))
-            ReorderableList(
-                itemsProvider = {
-                    pendingStationOrder.mapNotNull { num ->
-                        pendingStations.find { it.number == num }
-                    }.map { station ->
-                        val playableTracks = station.playableTracks(AppSettings.excludedTrackSuffixes)
-                        ReorderableList.Item(
-                            id = station.number.toString(),
-                            title = station.name,
-                            subtitle = "${playableTracks.size} 曲目 | ${station.stingers.size} Stinger | ${station.djSamples.size} DJ",
-                        )
-                    }
-                },
-                onSettle = { from, to ->
-                    pendingStationOrder = pendingStationOrder.toMutableList().apply {
-                        add(to, removeAt(from))
-                    }
-                },
-            ).invoke()
-            Spacer(Modifier.height(UiSpacing.SheetBottom))
         }
     }
 
@@ -326,7 +271,7 @@ fun RadiosScreen(
             val source = editingSource ?: return@OverlayBottomSheet
             val xmlPath = source.xmlFilePath
             val stations = AppSettings.radioSources[xmlPath] ?: return@OverlayBottomSheet
-            Column(modifier = Modifier.padding(horizontal = UiSpacing.Large)) {
+            Column {
                 SuperTextField(
                     value = source.name,
                     onValueChange = { editingSource = editingSource?.copy(name = it) },
@@ -352,6 +297,7 @@ fun RadiosScreen(
                                 val isHidden = station.name in source.hiddenStationNames
                                 IconButton(
                                     onClick = {
+                                        haptic.contextClick()
                                         editingSource = editingSource?.let {
                                             it.copy(
                                                 hiddenStationNames =
@@ -394,7 +340,11 @@ fun RadiosScreen(
 
 @Composable
 private fun StationCard(station: RadioStation, selected: Boolean, onClick: () -> Unit) {
-    Card(modifier = Modifier.clickable(onClick = onClick)) {
+    Card(
+        modifier = Modifier
+            .clip(RoundedCornerShape(CardDefaults.CornerRadius))
+            .clickable(onClick = onClick),
+    ) {
         Box(modifier = Modifier.fillMaxSize()) {
             Column(modifier = Modifier.fillMaxWidth().padding(UiSpacing.Large)) {
                 val playableTracks = station.playableTracks(AppSettings.excludedTrackSuffixes)

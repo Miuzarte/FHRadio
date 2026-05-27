@@ -31,63 +31,56 @@ actual class AudioPlayer {
         )
         player = factory.mediaPlayers().newMediaPlayer()
 
-        player.events().addMediaPlayerEventListener(object : MediaPlayerEventAdapter() {
-            override fun playing(mediaPlayer: MediaPlayer) {
-                state = state.copy(status = PlaybackStatus.Playing)
-            }
+        player.events().addMediaPlayerEventListener(
+            object: MediaPlayerEventAdapter() {
+                override fun playing(mediaPlayer: MediaPlayer) {
+                    state = state.copy(status = PlaybackStatus.Playing)
+                }
 
-            override fun paused(mediaPlayer: MediaPlayer) {
-                state = state.copy(status = PlaybackStatus.Paused)
-            }
+                override fun paused(mediaPlayer: MediaPlayer) {
+                    state = state.copy(status = PlaybackStatus.Paused)
+                }
 
-            override fun stopped(mediaPlayer: MediaPlayer) {
-                state = state.copy(status = PlaybackStatus.Stopped, currentPath = null, duration = Duration.ZERO)
-            }
+                override fun stopped(mediaPlayer: MediaPlayer) {
+                    state = state.copy(status = PlaybackStatus.Stopped, currentPath = null, duration = Duration.ZERO)
+                }
 
-            override fun finished(mediaPlayer: MediaPlayer) {
-                state = state.copy(status = PlaybackStatus.Ended, currentPath = null, duration = Duration.ZERO)
-            }
+                override fun finished(mediaPlayer: MediaPlayer) {
+                    state = state.copy(status = PlaybackStatus.Ended, currentPath = null, duration = Duration.ZERO)
+                }
 
-            override fun error(mediaPlayer: MediaPlayer) {
-                state = state.copy(status = PlaybackStatus.Error, currentPath = null, duration = Duration.ZERO)
-            }
+                override fun error(mediaPlayer: MediaPlayer) {
+                    state = state.copy(status = PlaybackStatus.Error, currentPath = null, duration = Duration.ZERO)
+                }
 
-            override fun opening(mediaPlayer: MediaPlayer) {
-                state = state.copy(status = PlaybackStatus.Opening)
-            }
+                override fun opening(mediaPlayer: MediaPlayer) {
+                    state = state.copy(status = PlaybackStatus.Opening)
+                }
 
-            override fun buffering(mediaPlayer: MediaPlayer, newCache: Float) {
-                state = state.copy(status = PlaybackStatus.Buffering)
-            }
+                override fun buffering(mediaPlayer: MediaPlayer, newCache: Float) {
+                    state = state.copy(status = PlaybackStatus.Buffering)
+                }
 
-            override fun timeChanged(mediaPlayer: MediaPlayer, newTime: Long) {
-                state = state.copy(position = newTime.milliseconds)
-            }
+                override fun timeChanged(mediaPlayer: MediaPlayer, newTime: Long) {
+                    state = state.copy(position = newTime.milliseconds)
+                }
 
-            override fun lengthChanged(mediaPlayer: MediaPlayer, newLength: Long) {
-                state = state.copy(duration = newLength.milliseconds)
-            }
+                override fun lengthChanged(mediaPlayer: MediaPlayer, newLength: Long) {
+                    state = state.copy(duration = newLength.milliseconds)
+                }
 
-            override fun muted(mediaPlayer: MediaPlayer, muted: Boolean) {
-                state = state.copy(isMuted = muted)
-            }
+                override fun muted(mediaPlayer: MediaPlayer, muted: Boolean) {
+                    state = state.copy(isMuted = muted)
+                }
 
-            override fun volumeChanged(mediaPlayer: MediaPlayer, volume: Float) {
-                state = state.copy(volume = volume.toInt())
-            }
-        })
+                override fun volumeChanged(mediaPlayer: MediaPlayer, volume: Float) {
+                    state = state.copy(volume = volume.toInt())
+                }
+            },
+        )
     }
 
-    actual var state by mutableStateOf(
-        PlayerState(
-            status = PlaybackStatus.Idle,
-            currentPath = null,
-            position = Duration.ZERO,
-            duration = Duration.ZERO,
-            isMuted = false,
-            volume = 100,
-        )
-    )
+    actual var state by mutableStateOf(PlayerState())
         private set
 
     actual fun play(path: String, beginAt: Duration) {

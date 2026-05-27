@@ -45,6 +45,7 @@ class ReorderableList(
     @Composable
     operator fun invoke() {
         val haptic = LocalHapticFeedback.current
+
         val items = itemsProvider()
         when (orientation) {
             Orientation.Column -> {

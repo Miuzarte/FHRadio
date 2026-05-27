@@ -5,9 +5,11 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import io.github.miuzarte.fhradio.ui.contextClick
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Slider
 import top.yukonga.miuix.kmp.basic.Text
@@ -41,6 +43,8 @@ fun SuperSlider(
     inputValueRange: ClosedFloatingPointRange<Float>? = null,
     onInputConfirm: (String) -> Unit,
 ) {
+    val haptic = LocalHapticFeedback.current
+
     var showInputDialog by remember { mutableStateOf(false) }
     var holdArrow by remember { mutableStateOf(false) }
 
@@ -48,6 +52,7 @@ fun SuperSlider(
         title = title,
         summary = summary,
         onClick = {
+            haptic.contextClick()
             showInputDialog = true
             holdArrow = true
         },
@@ -110,6 +115,8 @@ private fun SliderInputDialog(
     onDismissFinished: () -> Unit,
     onConfirm: (String) -> Unit,
 ) {
+    val haptic = LocalHapticFeedback.current
+
     OverlayDialog(
         show = showDialog,
         title = title,
@@ -138,13 +145,17 @@ private fun SliderInputDialog(
         Row(horizontalArrangement = Arrangement.SpaceBetween) {
             TextButton(
                 text = "取消",
-                onClick = onDismissRequest,
+                onClick = {
+                    haptic.contextClick()
+                    onDismissRequest()
+                },
                 modifier = Modifier.weight(1f),
             )
             Spacer(Modifier.width(20.dp))
             TextButton(
                 text = "确定",
                 onClick = {
+                    haptic.contextClick()
                     val inputValue = text.toFloatOrNull() ?: 0f
                     if (inputValue >= inputValueRange.start && inputValue <= inputValueRange.endInclusive) {
                         onConfirm(text.trim())

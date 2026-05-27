@@ -4,10 +4,10 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import io.github.miuzarte.fhradio.AppSettings.getSource
+import io.github.miuzarte.fhradio.constants.SUPPORTED_FORMATS
 import io.github.miuzarte.fhradio.model.*
 import kotlinx.coroutines.*
 import okio.FileNotFoundException
-import okio.Path.Companion.toPath
 import top.yukonga.miuix.kmp.basic.SnackbarDuration
 import kotlin.random.Random
 import kotlin.time.Clock
@@ -459,12 +459,12 @@ internal fun RadioStation.resolvePath(sample: Sample): String? {
     val source = this.getSource() ?: return null
     val relPath = pathFor(sample) ?: return null
 
-    val base = (source.audioFolderPath.toPath() / relPath).toString()
+    val base = joinPath(source.audioFolderPath, relPath.toString())
     val primaryExt = source.audioExtension
     var path = "$base.$primaryExt"
     if (fileExists(path)) return path
 
-    for (ext in listOf("wav", "flac", "mp3", "opus")) {
+    for (ext in SUPPORTED_FORMATS) {
         if (ext == primaryExt) continue
         path = "$base.$ext"
         if (fileExists(path)) return path

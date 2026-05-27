@@ -22,3 +22,6 @@ desktopApp/vlc-*
 
 context.md
 AGENTS.md
+
+localFiles/
+*.log

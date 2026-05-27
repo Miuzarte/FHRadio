@@ -16,7 +16,7 @@ object SettingsStore {
         RadioSettings(
             // radio
             radioMode = RadioMode.valueOf(s.getString("radio_mode", RadioSettings.defaults.radioMode.name)),
-            playMode = PlayMode.valueOf(s.getString("play_mode", RadioSettings.defaults.radioMode.name)),
+            playMode = PlayMode.valueOf(s.getString("play_mode", RadioSettings.defaults.playMode.name)),
 
             stingerProbability = s.getInt("stinger_probability", RadioSettings.defaults.stingerProbability),
             djProbability = s.getInt("dj_probability", RadioSettings.defaults.djProbability),

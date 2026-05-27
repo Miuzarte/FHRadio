@@ -17,7 +17,6 @@ import androidx.compose.ui.input.key.*
 import io.github.miuzarte.fhradio.AppRuntime
 import io.github.miuzarte.fhradio.AppSettings
 import io.github.miuzarte.fhradio.Radio
-import io.github.miuzarte.fhradio.Scheduler
 import io.github.miuzarte.fhradio.constants.UiMotion
 import kotlinx.coroutines.*
 import top.yukonga.miuix.kmp.basic.*
@@ -48,9 +47,6 @@ fun MainScreen() {
         }
 
         onDispose {
-            Scheduler.dispose()
-            Radio.dispose()
-            AppRuntime.dispose()
             scope.cancel()
         }
     }

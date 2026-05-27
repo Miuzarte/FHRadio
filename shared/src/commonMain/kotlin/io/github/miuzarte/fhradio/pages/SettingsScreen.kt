@@ -8,6 +8,7 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import io.github.miuzarte.fhradio.*
@@ -20,6 +21,7 @@ import io.github.miuzarte.fhradio.scaffolds.LazyColumn
 import io.github.miuzarte.fhradio.scaffolds.ReorderableList
 import io.github.miuzarte.fhradio.scaffolds.SectionSmallTitle
 import io.github.miuzarte.fhradio.scaffolds.SuperSlider
+import io.github.miuzarte.fhradio.ui.contextClick
 import io.github.miuzarte.fhradio.util.format
 import io.github.miuzarte.fhradio.util.formatTime
 import kotlinx.coroutines.isActive
@@ -48,6 +50,8 @@ fun SettingsScreen(
             AppRuntime.syncVolumeFromPlayers(force = true)
         }
     }
+
+    val haptic = LocalHapticFeedback.current
 
     Scaffold(
         topBar = {
@@ -134,16 +138,17 @@ fun SettingsScreen(
                     modifier = Modifier.padding(bottom = 12.dp),
                     tabs = listOf("完全随机", "种子控制", "播放器"),
                     selectedTabIndex = AppSettings.radioMode.ordinal,
-                    onTabSelected = {
-                        when (it) {
+                    onTabSelected = { index ->
+                        haptic.contextClick()
+                        when (index) {
                             RadioMode.Seed.ordinal -> {
                                 AppRuntime.snackbar("未实现")
                                 return@TabRow
                             }
                         }
-                        if (RadioMode.entries[it] == AppSettings.radioMode)
+                        if (RadioMode.entries[index] == AppSettings.radioMode)
                             Radio.reset() // 保存设置在相同时不会触发重置, 手动触发
-                        AppSettings.radioMode = RadioMode.entries[it]
+                        AppSettings.radioMode = RadioMode.entries[index]
                     },
                 )
                 Card {
@@ -213,6 +218,7 @@ fun SettingsScreen(
                                     )
                                 },
                                 onClick = {
+                                    haptic.contextClick()
                                     editingDjGameEvents = djGameEvents
                                     showDjGameEventsSheet = true
                                 },
@@ -366,7 +372,10 @@ fun SettingsScreen(
                                     // 循环模式
                                     ArrowPreference(
                                         title = "循环模式",
-                                        onClick = { showPatternSheet = true },
+                                        onClick = {
+                                            haptic.contextClick()
+                                            showPatternSheet = true
+                                        },
                                         holdDownState = showPatternSheet,
                                     )
                                 }
@@ -394,6 +403,7 @@ fun SettingsScreen(
                             )
                         },
                         onClick = {
+                            haptic.contextClick()
                             editingExcludeSuffixes = excludedTrackSuffixes
                             showExcludeSuffixDialog = true
                         },
@@ -450,14 +460,17 @@ fun SettingsScreen(
                         checked = AppRuntime.debug,
                         onCheckedChange = { AppRuntime.debug = it },
                     )
-                    ArrowPreference(
-                        title = "查看播放列表",
-                        onClick = {
-                            playList = Radio.getPlayList()
-                            showPlaylistSheet = true
-                        },
-                        holdDownState = showPlaylistSheet,
-                    )
+                    AnimatedVisibility(AppRuntime.debug) {
+                        ArrowPreference(
+                            title = "查看播放列表",
+                            onClick = {
+                                haptic.contextClick()
+                                playList = Radio.getPlayList()
+                                showPlaylistSheet = true
+                            },
+                            holdDownState = showPlaylistSheet,
+                        )
+                    }
                 }
             }
 
@@ -593,7 +606,10 @@ fun SettingsScreen(
                     TabRowWithContour(
                         tabs = SampleType.entries.map { it.toString() },
                         selectedTabIndex = editType.ordinal,
-                        onTabSelected = { editType = SampleType.entries[it] },
+                        onTabSelected = {
+                            haptic.contextClick()
+                            editType = SampleType.entries[it]
+                        },
                         modifier = Modifier
                             .padding(horizontal = UiSpacing.Large)
                             .padding(bottom = UiSpacing.Large),
@@ -747,13 +763,17 @@ fun SettingsScreen(
                 Row(horizontalArrangement = Arrangement.SpaceBetween) {
                     TextButton(
                         text = "取消",
-                        onClick = { showExcludeSuffixDialog = false },
+                        onClick = {
+                            haptic.contextClick()
+                            showExcludeSuffixDialog = false
+                        },
                         modifier = Modifier.weight(1f),
                     )
                     Spacer(Modifier.width(20.dp))
                     TextButton(
                         text = "确定",
                         onClick = {
+                            haptic.contextClick()
                             AppSettings.excludedTrackSuffixes = editingExcludeSuffixes
                             showExcludeSuffixDialog = false
                         },

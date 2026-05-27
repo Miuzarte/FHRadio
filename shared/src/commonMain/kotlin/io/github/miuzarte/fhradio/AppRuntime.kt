@@ -7,6 +7,7 @@ import kotlinx.coroutines.*
 import top.yukonga.miuix.kmp.basic.SnackbarDuration
 import top.yukonga.miuix.kmp.basic.SnackbarHostState
 import top.yukonga.miuix.kmp.basic.SnackbarResult
+import kotlin.math.abs
 import kotlin.time.Clock
 import kotlin.time.Duration.Companion.seconds
 
@@ -67,14 +68,16 @@ object AppRuntime {
         secondaryPlayer.setVolume(volume)
     }
 
-    private val volumeSyncJob = scope.launch(Dispatchers.Default) {
-        while (isActive) {
-            delay(1.seconds)
-            syncVolumeFromPlayers()
-        }
-    }
+    private val volumeSyncJob =
+        if (needVolumeSync) scope.launch(Dispatchers.Main) {
+            while (isActive) {
+                delay(1.seconds)
+                syncVolumeFromPlayers()
+            }
+        } else null
 
     internal fun syncVolumeFromPlayers(force: Boolean = false) {
+        if (!needVolumeSync) return
         val now = Clock.System.now().toEpochMilliseconds()
         if (!force && now - lastAppVolumeChangeEpochMs < 100) return
 
@@ -82,7 +85,7 @@ object AppRuntime {
         val vol = mainPlayer.getVolume()
         if (vol < 0) return
 
-        if (kotlin.math.abs(vol - AppSettings.volume) > 1) {
+        if (abs(vol - AppSettings.volume) > 1) {
             AppSettings.volume = vol
         }
     }

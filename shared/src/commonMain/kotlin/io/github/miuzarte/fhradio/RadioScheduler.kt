@@ -27,7 +27,7 @@ class ScheduledJob(
 }
 
 object Scheduler {
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     internal val jobs = mutableStateListOf<ScheduledJob>()
 
     fun scheduleMarker(

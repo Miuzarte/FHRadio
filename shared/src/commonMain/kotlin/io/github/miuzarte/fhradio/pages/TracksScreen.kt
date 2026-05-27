@@ -19,6 +19,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
@@ -31,9 +32,9 @@ import io.github.miuzarte.fhradio.model.*
 import io.github.miuzarte.fhradio.scaffolds.FlowGridState
 import io.github.miuzarte.fhradio.scaffolds.LazyColumn
 import io.github.miuzarte.fhradio.scaffolds.flowGrid
+import io.github.miuzarte.fhradio.ui.contextClick
 import io.github.miuzarte.fhradio.util.fmt
 import io.github.miuzarte.fhradio.util.format
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.*
 import top.yukonga.miuix.kmp.theme.MiuixTheme.colorScheme
@@ -44,6 +45,8 @@ fun TracksScreen(
     scrollBehavior: ScrollBehavior,
     bottomInnerPadding: Dp,
 ) {
+    val haptic = LocalHapticFeedback.current
+
     val tabs = remember { SampleType.entries }
     var selectedTabIndex by rememberSaveable { mutableIntStateOf(0) }
     val scope = rememberCoroutineScope()
@@ -76,6 +79,7 @@ fun TracksScreen(
                             tabs = tabs.map { it.toString() },
                             selectedTabIndex = selectedTabIndex,
                             onTabSelected = { index ->
+                                haptic.contextClick()
                                 if (selectedTabIndex == index) {
                                     station ?: return@TabRow
                                     // 双击随机播放
@@ -116,6 +120,7 @@ fun TracksScreen(
                         AnimatedVisibility(scrollBehavior.state.collapsedFraction < 0.3f) {
                             Column(
                                 modifier = Modifier.clickable {
+                                    haptic.contextClick()
                                     Radio.trackPlaying?.let { playing ->
                                         val tracks =
                                             Radio.selectedStation?.playableTracks(AppSettings.excludedTrackSuffixes)
@@ -182,7 +187,8 @@ fun TracksScreen(
                 ) {
                     IconButton(
                         onClick = {
-                            scope.launch(Dispatchers.Default) {
+                            haptic.contextClick()
+                            scope.launch {
                                 Radio.stopPlayback()
                                 Scheduler.cancel()
                             }
@@ -196,7 +202,8 @@ fun TracksScreen(
                     }
                     IconButton(
                         onClick = {
-                            scope.launch(Dispatchers.Default) {
+                            haptic.contextClick()
+                            scope.launch {
                                 Radio.nextSection()
                             }
                         },
@@ -311,6 +318,8 @@ private fun <T: Sample> SampleCardList(
     errorLabel: String,
     displayContent: @Composable ColumnScope.(T, Boolean) -> Unit,
 ) {
+    val haptic = LocalHapticFeedback.current
+
     var frameCount by remember { mutableIntStateOf(0) }
     LaunchedEffect(Unit) {
         while (true) {
@@ -346,6 +355,7 @@ private fun <T: Sample> SampleCardList(
                     modifier = Modifier
                         .clip(RoundedCornerShape(CardDefaults.CornerRadius))
                         .clickable {
+                            haptic.contextClick()
                             runCatching {
                                 Radio.beginSection(playSectionFactory(sample))
                             }.onFailure { e ->

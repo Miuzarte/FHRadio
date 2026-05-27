@@ -74,12 +74,12 @@
 ### (可选) 音频压缩/格式转码
 
 - 将解包出来的 `.wav` 音频转换为 `.flac`/`.mp3` 等压缩后的音频格式
+  - 所有电台包括 `Tracks`, `Stinger`, `DJ` 解包后占用一共 `12.9 GB`, 按 ffmpeg 默认参数压缩为 `flac` 并删除 `DJ` 后, 占用 `4.63 GB`
   - 具体支持格式取决于平台
     - Desktop: 基于 [vlc](https://www.videolan.org/vlc/), [caprica/vlcj](https://github.com/caprica/vlcj), 支持绝大部分音频格式
-    - Android: 基于 [MediaCodec](https://developer.android.com/media/platform/supported-formats), 根据文档: `flac`, `mp3`, `aac`, `ogg`
+    - Android: 基于 [MediaCodec](https://developer.android.com/media/platform/supported-formats), 根据文档: `flac`, `mp3`, `aac`, `ogg`(`opus`)
     - iOS: [TBD]
-  - 需要 [FFmpeg](ffmpeg.org) 安装于 path 中, [BtbN/FFmpeg-Builds/releases](https://github.com/BtbN/FFmpeg-Builds/releases)
-  - [TODO] 提供 FFmpeg ps1 脚本, 可选删除不需要的 `.wav`
+  - 项目仓库 [tool/](./tool/) 中有个脚本 [tool/convert.ps1](./tool/convert.ps1), 需要 [FFmpeg](ffmpeg.org) 安装于 path 中, [BtbN/FFmpeg-Builds/releases](https://github.com/BtbN/FFmpeg-Builds/releases)
 
 ### 整理音频
 
@@ -105,3 +105,51 @@
   - 再选择 `Fmod_Bank_Tools\wav\`(如果未移动) 并确认
     - 选择包含所有电台的 `wav\`, 而不是单个电台文件夹
   - 简单对电台源进行命名、排序后保存即可
+
+### 示例结果
+
+```tree
+B:\SOFTWARE\FMOD_BANK_TOOLS\WAV
+├─Gacha City Radio
+│  ├─DJ
+│  │      sound_0.wav
+│  │      ...
+│  │      sound_246.wav
+│  │      
+│  ├─Stinger
+│  │      sound_0.wav
+│  │      ...
+│  │      sound_9.wav
+│  │      
+│  └─Track
+│          sound_0.wav
+│          ...
+│          sound_24.wav
+│          
+├─Horizon Bass Arena
+│  ├─DJ
+│  │      sound_0.wav
+│  │      ...
+│  │      sound_196.wav
+│  │      VO_DJ_02_CN.assets[0].txt // 留着或删掉都可以, 无任何影响
+│  │      
+│  ├─Stinger
+│  │      R2_Stingers_CN.assets[0].txt
+│  │      sound_0.wav
+│  │      ...
+│  │      sound_9.wav
+│  │      
+│  └─Track
+│      ├─CU1
+│      │      sound_0.wav
+│      │      ...
+│      │      sound_26.wav
+│      │      
+│      └─Disk
+│              R2_Tracks_Disk.assets[0].txt
+│              sound_0.wav
+│              sound_1.wav
+│              
+├─Horizon Block Party
+...
+```

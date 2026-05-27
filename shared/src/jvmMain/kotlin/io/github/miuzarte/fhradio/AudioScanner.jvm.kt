@@ -1,5 +1,6 @@
 package io.github.miuzarte.fhradio
 
+import io.github.miuzarte.fhradio.constants.SUPPORTED_FORMATS
 import io.github.miuzarte.fhradio.model.*
 import java.io.File
 
@@ -22,35 +23,38 @@ actual class AudioScanner {
                 val stingerDir = File(stationDir, SampleType.Stinger.toString())
                 val djDir = File(stationDir, SampleType.DJ.toString())
 
-                val trackMatched = station.tracks.count { t -> hasFile(trackDir, t.soundName) != null }
-                val stingerCount = countAudioFiles(stingerDir)
-                val djCount = countAudioFiles(djDir)
+                val trackFiles = listDirFiles(trackDir)
+                val stingerFiles = listDirFiles(stingerDir)
+                val djFiles = listDirFiles(djDir)
+
+                val trackMatched = station.tracks.count { t ->
+                    SUPPORTED_FORMATS.any { ext -> "${t.soundName}.$ext" in trackFiles }
+                }
 
                 StationVerifyResult(
                     station.name, true,
                     trackMatched, station.tracks.size,
-                    stingerCount, station.stingers.size,
-                    djCount, station.djSamples.size,
+                    stingerFiles.size, station.stingers.size,
+                    djFiles.size, station.djSamples.size,
                 )
             }
         }
         return VerifyResult(results)
     }
 
-    private fun hasFile(dir: File, soundName: String): String? {
-        if (!dir.isDirectory) return null
-        for (ext in audioExtensions) {
-            if (File(dir, "$soundName.$ext").exists()) return ext
+    private fun listDirFiles(dir: File): Set<String> {
+        if (!dir.isDirectory) return emptySet()
+        val result = mutableSetOf<String>()
+        dir.listFiles()?.forEach { file ->
+            if (file.isFile && file.extension.lowercase() in SUPPORTED_FORMATS) {
+                result.add(file.name.lowercase())
+            }
         }
-        return null
-    }
-
-    private fun countAudioFiles(dir: File): Int {
-        if (!dir.isDirectory) return 0
-        return dir.listFiles()?.count { it.isFile && it.extension.lowercase() in audioExtensions } ?: 0
-    }
-
-    companion object {
-        val audioExtensions = listOf("wav", "flac", "mp3", "opus")
+        // 递归扫描子目录 (多 bank 如 CU1/Disk)
+        dir.listFiles()?.filter { it.isDirectory }?.forEach { subDir ->
+            val subResult = listDirFiles(subDir)
+            result.addAll(subResult)
+        }
+        return result
     }
 }

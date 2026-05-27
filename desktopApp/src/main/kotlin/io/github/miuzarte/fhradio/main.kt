@@ -11,7 +11,12 @@ fun main() = application {
     val windowState = rememberWindowState(size = DpSize(800.dp, 960.dp))
 
     Window(
-        onCloseRequest = ::exitApplication,
+        onCloseRequest = {
+            Scheduler.dispose()
+            Radio.dispose()
+            AppRuntime.dispose()
+            exitApplication()
+        },
         state = windowState,
         title =
             if (Radio.selectedStation == null || Radio.trackPlaying == null) "FHRadio"
