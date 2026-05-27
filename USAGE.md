@@ -74,7 +74,7 @@
 ### (可选) 音频压缩/格式转码
 
 - 将解包出来的 `.wav` 音频转换为 `.flac`/`.mp3` 等压缩后的音频格式
-  - 所有电台包括 `Tracks`, `Stinger`, `DJ` 解包后占用一共 `12.9 GB`, 按 ffmpeg 默认参数压缩为 `flac` 并删除 `DJ` 后, 占用 `4.63 GB`
+  - 所有电台包括 `Tracks`, `Stinger`, `DJ` 解包后占用一共 `12.9 GB`, 按 ffmpeg -compression_level 8 压缩为 `flac` 并删除 `DJ` 后, 占用 `4.63 GB`
   - 具体支持格式取决于平台
     - Desktop: 基于 [vlc](https://www.videolan.org/vlc/), [caprica/vlcj](https://github.com/caprica/vlcj), 支持绝大部分音频格式
     - Android: 基于 [MediaCodec](https://developer.android.com/media/platform/supported-formats), 根据文档: `flac`, `mp3`, `aac`, `ogg`(`opus`)

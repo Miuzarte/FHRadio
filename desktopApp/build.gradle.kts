@@ -20,7 +20,7 @@ compose.desktop {
         mainClass = "io.github.miuzarte.fhradio.MainKt"
 
         nativeDistributions {
-            targetFormats(TargetFormat.Dmg, TargetFormat.Msi, TargetFormat.Deb)
+            targetFormats(TargetFormat.Dmg, TargetFormat.Deb)
             packageName = "io.github.miuzarte.fhradio"
             packageVersion = "1.0.0"
         }

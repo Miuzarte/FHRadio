@@ -20,7 +20,7 @@ actual class AudioPlayer {
 
     init {
         val vlcPath = resolveVlcPath()
-            ?: error("VLC 3.x not found. Put it in desktopApp/vlc-3.0.23/ or install to C:/Program Files/VideoLAN/VLC")
+            ?: error("VLC 3.x not found.")
         System.setProperty("jna.library.path", vlcPath)
         factory = MediaPlayerFactory(
             "--no-video",
@@ -117,11 +117,8 @@ actual class AudioPlayer {
 
     private fun resolveVlcPath(): String? {
         val candidates = listOf(
-            "".toPath() / "desktopApp" / "vlc-3.0.23",
-            // B:\Git\FHRadio\desktopApp\vlc-3.0.23
-            "B:".toPath() / "Git" / "FHRadio" / "desktopApp" / "vlc-3.0.23",
-            "C:".toPath() / "Program Files" / "VideoLAN" / "VLC",
-            "C:".toPath() / "Program Files (x86)" / "VideoLAN" / "VLC",
+            "vlc", // FHRadio\
+            "..".toPath() / "vlc", // FHRadio\desktopApp\
         ).map { it.toString() }
         for (dir in candidates) {
             if (File(dir, "libvlc.dll").exists()) return dir

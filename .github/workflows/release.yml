@@ -1,0 +1,278 @@
+name: Build and Release
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "*"
+permissions:
+  contents: write
+
+jobs:
+  ci-build:
+    if: ${{ github.event_name == 'workflow_dispatch' }}
+    strategy:
+      matrix:
+        target: [android, desktop]
+        include:
+          - target: android
+            os: ubuntu-latest
+          - target: desktop
+            os: windows-latest
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: "21"
+          distribution: "temurin"
+          cache: gradle
+
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+            !~/.gradle/caches/build-cache-*
+          key: gradle-deps-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+          restore-keys: gradle-deps-
+
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches/build-cache-*
+          key: gradle-builds-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}-${{ github.sha }}
+          restore-keys: gradle-builds-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}-
+
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
+
+      - name: Decode Android signing keystore
+        if: ${{ matrix.target == 'android' }}
+        shell: bash
+        env:
+          RELEASE_STORE_FILE: /tmp/release.p12
+        run: |
+          echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 -d > "$RELEASE_STORE_FILE"
+
+      - name: Build Android (${{ matrix.target }})
+        if: ${{ matrix.target == 'android' }}
+        run: ./gradlew :androidApp:assembleRelease
+        env:
+          RELEASE_STORE_FILE: /tmp/release.p12
+          RELEASE_STORE_PASSWORD: ${{ secrets.ANDROID_STORE_PASSWORD }}
+          RELEASE_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          RELEASE_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+
+      - name: Build Desktop (${{ matrix.target }})
+        if: ${{ matrix.target == 'desktop' }}
+        run: ./gradlew :desktopApp:createReleaseDistributable
+
+      - name: Bundle VLC (Desktop)
+        if: ${{ matrix.target == 'desktop' }}
+        shell: pwsh
+        run: |
+          $appDir = Get-ChildItem -Path desktopApp/build/compose/binaries -Recurse -Directory -Filter app | Select-Object -First 1
+          $vlcDir = "$($appDir.FullName)/vlc"
+          New-Item -ItemType Directory -Force -Path $vlcDir | Out-Null
+          $vlcUrl = "https://download.videolan.org/pub/videolan/vlc/3.0.23/win64/vlc-3.0.23-win64.zip"
+          $vlcZip = "$env:RUNNER_TEMP/vlc.zip"
+          Invoke-WebRequest -Uri $vlcUrl -OutFile $vlcZip
+          Expand-Archive -Path $vlcZip -DestinationPath "$env:RUNNER_TEMP/vlc-extract"
+          Copy-Item -Path "$env:RUNNER_TEMP/vlc-extract/vlc-3.0.23/*" -Destination $vlcDir -Recurse
+          Copy-Item -Path LICENSE-VLC.txt -Destination $vlcDir
+
+      - name: Collect CI artifacts
+        shell: pwsh
+        run: |
+          $out = "out/${{ matrix.target }}"
+          New-Item -ItemType Directory -Force -Path $out | Out-Null
+          if ("${{ matrix.target }}" -eq "android") {
+            $apks = Get-ChildItem -Path androidApp/build/outputs/apk -Recurse -Filter *.apk -File
+            foreach ($apk in $apks) {
+              Copy-Item $apk.FullName "$out/ci-$($apk.Name)"
+            }
+          } else {
+            $appDir = Get-ChildItem -Path desktopApp/build/compose/binaries -Recurse -Directory -Filter app | Select-Object -First 1
+            Compress-Archive -Path "$($appDir.FullName)/*" -DestinationPath "$out/ci-FHRadio-win64.zip"
+          }
+
+      - name: Upload CI artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: fhradio-ci-${{ matrix.target }}-${{ github.run_number }}
+          path: out/${{ matrix.target }}/*
+          if-no-files-found: error
+
+  release-build:
+    if: ${{ startsWith(github.ref, 'refs/tags/') }}
+    strategy:
+      matrix:
+        include:
+          - target: android
+            os: ubuntu-latest
+          - target: desktop
+            os: windows-latest
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: "21"
+          distribution: "temurin"
+          cache: gradle
+
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+            !~/.gradle/caches/build-cache-*
+          key: gradle-deps-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+          restore-keys: gradle-deps-
+
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches/build-cache-*
+          key: gradle-builds-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}-${{ github.sha }}
+          restore-keys: gradle-builds-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}-
+
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
+
+      - name: Decode Android signing keystore
+        if: ${{ matrix.target == 'android' }}
+        shell: bash
+        env:
+          RELEASE_STORE_FILE: /tmp/release.p12
+        run: |
+          echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 -d > "$RELEASE_STORE_FILE"
+
+      - name: Build Android (${{ matrix.target }})
+        if: ${{ matrix.target == 'android' }}
+        run: ./gradlew :androidApp:assembleRelease
+        env:
+          RELEASE_STORE_FILE: /tmp/release.p12
+          RELEASE_STORE_PASSWORD: ${{ secrets.ANDROID_STORE_PASSWORD }}
+          RELEASE_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          RELEASE_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+
+      - name: Build Windows (${{ matrix.target }})
+        if: ${{ matrix.target == 'desktop' }}
+        run: ./gradlew :desktopApp:createReleaseDistributable
+
+      - name: Bundle VLC (Windows)
+        if: ${{ matrix.target == 'desktop' }}
+        shell: pwsh
+        run: |
+          $appDir = Get-ChildItem -Path desktopApp/build/compose/binaries -Recurse -Directory -Filter app | Select-Object -First 1
+          $vlcDir = "$($appDir.FullName)/vlc"
+          New-Item -ItemType Directory -Force -Path $vlcDir | Out-Null
+          $vlcUrl = "https://download.videolan.org/pub/videolan/vlc/3.0.23/win64/vlc-3.0.23-win64.zip"
+          $vlcZip = "$env:RUNNER_TEMP/vlc.zip"
+          Invoke-WebRequest -Uri $vlcUrl -OutFile $vlcZip
+          Expand-Archive -Path $vlcZip -DestinationPath "$env:RUNNER_TEMP/vlc-extract"
+          Copy-Item -Path "$env:RUNNER_TEMP/vlc-extract/vlc-3.0.23/*" -Destination $vlcDir -Recurse
+
+      - name: Collect release assets
+        shell: pwsh
+        run: |
+          $tag = "${{ github.ref_name }}"
+          New-Item -ItemType Directory -Force -Path dist | Out-Null
+          if ("${{ matrix.target }}" -eq "android") {
+            $apks = Get-ChildItem -Path androidApp/build/outputs/apk -Recurse -Filter *.apk -File
+            foreach ($apk in $apks) {
+              Copy-Item $apk.FullName "dist/FHRadio-${tag}-$($apk.Name)"
+            }
+          } else {
+            $appDir = Get-ChildItem -Path desktopApp/build/compose/binaries -Recurse -Directory -Filter app | Select-Object -First 1
+            Compress-Archive -Path "$($appDir.FullName)/*" -DestinationPath "dist/FHRadio-win64-${tag}.zip"
+          }
+
+      - name: Upload release asset
+        uses: actions/upload-artifact@v4
+        with:
+          name: fhradio-release-${{ matrix.target }}
+          path: dist/*
+
+  publish-release:
+    needs: release-build
+    if: ${{ startsWith(github.ref, 'refs/tags/') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Generate release notes
+        run: |
+          set -euo pipefail
+
+          notes_file="dist/RELEASE_NOTES.md"
+          download_base_url="https://github.com/${GITHUB_REPOSITORY}/releases/download/${GITHUB_REF_NAME}"
+          proxy_base_url="https://github.miuzarte.top/${GITHUB_REPOSITORY}/releases/download/${GITHUB_REF_NAME}"
+
+          {
+            echo "| 平台<br>架构 | 文件 | 大小<br>SHA256 |"
+            echo "| ------------ | ---- | -------------- |"
+
+            shopt -s nullglob
+            for file in dist/*; do
+              file_name="$(basename "$file")"
+
+              platform="unknown"
+              arch="unknown"
+              if [[ "$file_name" == *.apk ]]; then
+                platform="Android"
+                if [[ "$file_name" == *"universal"* ]]; then
+                  arch="universal"
+                elif [[ "$file_name" == *"arm64-v8a"* ]]; then
+                  arch="arm64"
+                elif [[ "$file_name" == *"armeabi-v7a"* ]]; then
+                  arch="arm32"
+                elif [[ "$file_name" == *"x86_64"* ]]; then
+                  arch="x86_64"
+                elif [[ "$file_name" == *"x86"* ]]; then
+                  arch="x86"
+                fi
+              elif [[ "$file_name" == *.zip ]]; then
+                platform="Windows"
+                arch="x86_64"
+              fi
+
+              file_url="${download_base_url}/${file_name}"
+              proxy_url="${proxy_base_url}/${file_name}"
+              sha256_value="$(sha256sum "$file" | awk '{print $1}')"
+              size_bytes="$(stat -c%s "$file")"
+              size_mb="$(awk -v bytes="$size_bytes" 'BEGIN { printf "%.1f MB", bytes / 1048576 }')"
+
+              echo "| ${platform}<br>${arch} [${file_name}](${file_url})<br><br>[你的反代跨越了半个地球🐌<br>但是你套的Cloudflare☁️又弥补了这一部分🚀](${proxy_url}) | ${size_mb}<br>\`${sha256_value}\` |"
+            done
+          } > "$notes_file"
+
+          cat "$notes_file"
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: ${{ github.ref_name }}
+          body_path: dist/RELEASE_NOTES.md
+          files: |
+            dist/*.apk
+            dist/*.zip

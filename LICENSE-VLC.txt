@@ -1,0 +1,8 @@
+VLC Binaries in this distribution are licensed under the GNU Lesser General Public
+License v2.1 (LGPLv2.1). The source code and full license text are available at:
+
+  https://videolan.org
+  https://www.gnu.org/licenses/old-licenses/lgpl-2.1.en.html
+
+VLC is an open-source project by the VideoLAN organization.
+The VLC binaries included here are unmodified and provided as-is.

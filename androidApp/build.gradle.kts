@@ -20,6 +20,15 @@ dependencies {
     debugImplementation(libs.compose.uiTooling)
 }
 
+val defaultAbiList = listOf("armeabi-v7a", "arm64-v8a", "x86", "x86_64")
+val configuredAbiList = (project.findProperty("abiList") as String?)
+    ?.split(",")
+    ?.map { it.trim() }
+    ?.filter { it.isNotEmpty() }
+    ?.ifEmpty { null }
+    ?: defaultAbiList
+val buildUniversalApk = configuredAbiList.size > 1
+
 android {
     namespace = "io.github.miuzarte.fhradio"
     compileSdk = libs.versions.android.compileSdk.get().toInt()
@@ -30,6 +39,19 @@ android {
         targetSdk = libs.versions.android.targetSdk.get().toInt()
         versionCode = 1
         versionName = "1.0"
+
+        ndk {
+            //noinspection ChromeOsAbiSupport
+            abiFilters += configuredAbiList
+        }
+    }
+    splits {
+        abi {
+            isEnable = buildUniversalApk
+            reset()
+            include(*configuredAbiList.toTypedArray())
+            isUniversalApk = buildUniversalApk
+        }
     }
     packaging {
         resources {
@@ -39,6 +61,18 @@ android {
     buildTypes {
         getByName("release") {
             isMinifyEnabled = false
+        }
+    }
+    signingConfigs {
+        val sf = System.getenv("RELEASE_STORE_FILE")
+        if (sf != null) {
+            create("release") {
+                storeFile = file(sf)
+                storePassword = System.getenv("RELEASE_STORE_PASSWORD")
+                keyAlias = System.getenv("RELEASE_KEY_ALIAS")
+                keyPassword = System.getenv("RELEASE_KEY_PASSWORD")
+            }
+            buildTypes.getByName("release").signingConfig = signingConfigs.getByName("release")
         }
     }
     compileOptions {
