@@ -151,21 +151,21 @@ object Radio {
     // 播放切入点
     // 播放当前进度
 
-    internal var trackPlaying: TrackSample? by mutableStateOf(null)
+    var trackPlaying: TrackSample? by mutableStateOf(null)
         private set
     internal var trackBeginInstant: Instant? = null
     internal var trackBeginPos: Duration = Duration.ZERO
     internal val trackCurrentPos: Duration?
         get() = trackBeginInstant?.let { trackBeginPos + (Clock.System.now() - it) }
 
-    internal var stingerPlaying: StingerSample? by mutableStateOf(null)
+    var stingerPlaying: StingerSample? by mutableStateOf(null)
         private set
     internal var stingerBeginInstant: Instant? = null
     internal var stingerBeginPos: Duration = Duration.ZERO
     internal val stingerCurrentPos: Duration?
         get() = stingerBeginInstant?.let { stingerBeginPos + (Clock.System.now() - it) }
 
-    internal var djPlaying: DjSample? by mutableStateOf(null)
+    var djPlaying: DjSample? by mutableStateOf(null)
         private set
     internal var djBeginInstant: Instant? = null
     internal var djBeginPos: Duration = Duration.ZERO

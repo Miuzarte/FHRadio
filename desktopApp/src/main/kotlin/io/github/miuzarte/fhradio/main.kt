@@ -13,7 +13,9 @@ fun main() = application {
     Window(
         onCloseRequest = ::exitApplication,
         state = windowState,
-        title = "FHRadio",
+        title =
+            if (Radio.selectedStation == null || Radio.trackPlaying == null) "FHRadio"
+            else "${Radio.trackPlaying!!.displayName} - ${Radio.trackPlaying!!.artist} - ${Radio.selectedStation!!.name} - FHRadio",
     ) {
         MainScreen()
     }
