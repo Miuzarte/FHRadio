@@ -41,6 +41,7 @@
           - 9: R7_Tracks_CU1.assets.bank
           - 10: R8_Tracks_CU1.assets.bank
           - 11: R9_Tracks_CU1.assets.bank
+          - (btw R10 里只有一首, 是游戏启动到主菜单的音乐)
       - Stinger: (建议不跳过)
         - 搜索 `R*_Stingers_CN.assets.bank`, 语言地区代码最好匹配前面选择的 `RadioInfo_*.xml`, 例如 `R*_Stingers_EN`
         - 复制 `R1_Stingers_*.assets.bank` ~ `R9_Stingers_*.assets.bank`

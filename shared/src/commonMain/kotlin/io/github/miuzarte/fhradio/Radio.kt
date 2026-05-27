@@ -21,8 +21,8 @@ internal fun debugDo(block: () -> Unit) {
 }
 
 internal fun debugSnack(message: String) {
+    println(message)
     debugDo {
-        println(message)
         AppRuntime.snackbar(
             message = message,
             duration = SnackbarDuration.Long,

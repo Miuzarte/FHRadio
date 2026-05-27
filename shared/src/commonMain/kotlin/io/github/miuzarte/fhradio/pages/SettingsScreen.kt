@@ -43,6 +43,7 @@ import top.yukonga.miuix.kmp.preference.SwitchPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme.colorScheme
 import kotlin.math.roundToInt
 import kotlin.time.Duration
+import kotlin.time.Duration.Companion.hours
 
 @Composable
 fun SettingsScreen(
@@ -209,7 +210,7 @@ fun SettingsScreen(
                             )
                             ArrowPreference(
                                 title = "DJ 集合",
-                                summary = "按 DJ.GameEvent 筛选",
+                                summary = "按 DJ.GameEvent 筛选，白名单，除了全不选时会视为全选",
                                 endActions = {
                                     Text(
                                         text = djGameEvents
@@ -390,6 +391,7 @@ fun SettingsScreen(
                     }
                     ArrowPreference(
                         title = "按后缀排除曲目",
+                        summary = "按 SoundName 的后缀排除部分用于游戏中剧情的曲目",
                         endActions = {
                             Text(
                                 text = excludedTrackSuffixes
@@ -488,11 +490,10 @@ fun SettingsScreen(
                             @Suppress("UNUSED_EXPRESSION")
                             frameCount
                             Scheduler.jobs.forEach { job ->
-                                // TODO: platforms timezone
-                                // UTC+8
                                 val delay = job.delay
                                 val remaining = job.remaining()
-                                val scheduledAt = job.scheduledAt
+                                // TODO: platforms timezone
+                                val scheduledAt = job.scheduledAt + 8.hours // UTC+8
                                 Text(
                                     text = "${job.tag} @ ${delay.format()} (-${remaining.format()}) (${scheduledAt.formatTime()})",
                                     color =

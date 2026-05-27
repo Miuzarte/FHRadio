@@ -9,6 +9,8 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.CheckCircleOutline
 import androidx.compose.material.icons.rounded.Settings
+import androidx.compose.material.icons.rounded.Visibility
+import androidx.compose.material.icons.rounded.VisibilityOff
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -62,9 +64,7 @@ fun RadiosScreen(
 
     // 电台编辑
     var showStationOrderSheet by remember { mutableStateOf(false) }
-    var editingSourceXmlPath by remember { mutableStateOf<String?>(null) }
-    var editingStationOrder by remember { mutableStateOf<List<Int>>(emptyList()) }
-    var editingSourceName by remember { mutableStateOf("") }
+    var editingSource by remember { mutableStateOf<RadioSource?>(null) }
 
     Scaffold(
         topBar = {
@@ -131,7 +131,9 @@ fun RadiosScreen(
                 AppSettings.radioSourcesXml.forEach { source ->
                     item { SectionSmallTitle(source.name) }
                     val stations = AppSettings.radioSources[source.xmlFilePath] ?: emptyList()
-                    val ordered = source.stationOrder.mapNotNull { num -> stations.find { it.number == num } }
+                    val ordered = source.stationOrder
+                        .mapNotNull { num -> stations.find { it.number == num } }
+                        .filterNot { it.name in source.hiddenStationNames }
                     flowGrid(ordered) { _, station ->
                         val isSelected = Radio.selectedStation == station
                         StationCard(
@@ -229,16 +231,16 @@ fun RadiosScreen(
                         title = source.name,
                         subtitle = "${AppSettings.radioSources[source.xmlFilePath]?.size ?: 0} 电台",
                         onClick = {
-                            editingSourceXmlPath = source.xmlFilePath
-                            editingStationOrder = source.stationOrder
-                            editingSourceName = source.name
+                            editingSource = source
                             showStationOrderSheet = true
                         },
                         endAction = {
-                            IconButton(onClick = {
-                                sourceToDelete = source.xmlFilePath
-                                showDeleteDialog = true
-                            }) {
+                            IconButton(
+                                onClick = {
+                                    sourceToDelete = source.xmlFilePath
+                                    showDeleteDialog = true
+                                },
+                            ) {
                                 Icon(
                                     imageVector = MiuixIcons.Delete,
                                     contentDescription = "删除",
@@ -289,33 +291,31 @@ fun RadiosScreen(
         }
     }
 
-    if (editingSourceXmlPath != null && editingStationOrder.isNotEmpty()) {
+    if (editingSource != null && editingSource!!.stationOrder.isNotEmpty()) {
         OverlayBottomSheet(
             show = showStationOrderSheet,
             title = "电台编辑",
             onDismissRequest = { showStationOrderSheet = false },
             defaultWindowInsetsPadding = false,
         ) {
-            val xmlPath = editingSourceXmlPath ?: return@OverlayBottomSheet
+            val source = editingSource ?: return@OverlayBottomSheet
+            val xmlPath = source.xmlFilePath
             val stations = AppSettings.radioSources[xmlPath] ?: return@OverlayBottomSheet
             Column(modifier = Modifier.padding(horizontal = UiSpacing.Large)) {
                 SuperTextField(
-                    value = editingSourceName,
-                    onValueChange = { editingSourceName = it },
+                    value = source.name,
+                    onValueChange = { editingSource = editingSource?.copy(name = it) },
                     label = "源名称",
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
                     onFocusLost = {
-                        val source = AppSettings.radioSourcesXml.find { it.xmlFilePath == xmlPath }
-                            ?.copy(name = editingSourceName)
-                            ?: return@SuperTextField
-                        AppSettings.updateRadioSource(source)
+                        editingSource?.let { AppSettings.updateRadioSource(it) }
                     },
                 )
                 Spacer(Modifier.height(12.dp))
                 ReorderableList(
                     itemsProvider = {
-                        editingStationOrder.mapNotNull { num ->
+                        source.stationOrder.mapNotNull { num ->
                             stations.find { it.number == num }
                         }.map { station ->
                             val playableTracks = station.playableTracks(AppSettings.excludedTrackSuffixes)
@@ -323,18 +323,42 @@ fun RadiosScreen(
                                 id = station.number.toString(),
                                 title = station.name,
                                 subtitle = "${playableTracks.size} 曲目 | ${station.stingers.size} Stinger | ${station.djSamples.size} DJ",
-                            )
+                            ) {
+                                val isHidden = station.name in source.hiddenStationNames
+                                IconButton(
+                                    onClick = {
+                                        editingSource = editingSource?.let {
+                                            it.copy(
+                                                hiddenStationNames =
+                                                    if (isHidden) it.hiddenStationNames - station.name
+                                                    else it.hiddenStationNames + station.name
+                                            )
+                                        }
+                                        editingSource?.let { AppSettings.updateRadioSource(it) }
+                                    }
+                                ) {
+                                    Icon(
+                                        imageVector =
+                                            if (isHidden) Icons.Rounded.VisibilityOff
+                                            else Icons.Rounded.Visibility,
+                                        contentDescription =
+                                            if (isHidden) "显示"
+                                            else "隐藏",
+                                    )
+                                }
+                            }
                         }
                     },
                     onSettle = { from, to ->
-                        editingStationOrder = editingStationOrder.toMutableList().apply {
-                            add(to, removeAt(from))
+                        editingSource = editingSource?.let {
+                            it.copy(
+                                stationOrder = it.stationOrder.toMutableList()
+                                    .also { list ->
+                                        list.add(to, list.removeAt(from))
+                                    },
+                            )
                         }
-                        val source =
-                            AppSettings.radioSourcesXml.find { it.xmlFilePath == xmlPath }
-                                ?.copy(stationOrder = editingStationOrder)
-                                ?: return@ReorderableList
-                        AppSettings.updateRadioSource(source)
+                        editingSource?.let { AppSettings.updateRadioSource(it) }
                     },
                 ).invoke()
             }

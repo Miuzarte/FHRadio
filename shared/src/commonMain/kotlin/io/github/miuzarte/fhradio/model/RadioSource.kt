@@ -9,4 +9,5 @@ data class RadioSource(
     val audioFolderPath: String,
     val stationOrder: List<Int> = emptyList(),
     val audioExtension: String = "wav",
+    val hiddenStationNames: Set<String> = setOf("Streamer Mode"),
 )

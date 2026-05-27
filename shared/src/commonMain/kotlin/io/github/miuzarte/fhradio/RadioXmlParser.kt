@@ -154,12 +154,20 @@ object RadioXmlParser {
         val nextPos: Int
     )
 
+    private fun unescapeXml(s: String): String = s
+        .replace("&amp;", "&")
+        .replace("&lt;", "<")
+        .replace("&gt;", ">")
+        .replace("&quot;", "\"")
+        .replace("&apos;", "'")
+
     private fun parseElement(xml: String, start: Int): ParseResult {
         var pos = skipPast(xml, start, '<')
         pos = skipDeclarationOrComment(xml, pos)
 
         val nameEnd = xml.indexOfAny(charArrayOf(' ', '/', '>'), pos)
-            .takeIf { it >= 0 } ?: xml.length
+            .takeIf { it >= 0 }
+            ?: xml.length
         val name = xml.substring(pos, nameEnd)
         pos = nameEnd
 
@@ -168,19 +176,27 @@ object RadioXmlParser {
 
         while (pos < xml.length) {
             pos = skipWhitespace(xml, pos)
-            val c = xml[pos]
-            when {
-                c == '/' -> { pos++; selfClosing = true }
-                c == '>' -> { pos++; break }
+            when (xml[pos]) {
+                '/' -> {
+                    pos++
+                    selfClosing = true
+                }
+
+                '>' -> {
+                    pos++
+                    break
+                }
+
                 else -> {
                     val eq = xml.indexOf('=', pos)
                     if (eq < 0) break
                     val attrName = xml.substring(pos, eq)
                     pos = eq + 1
-                    val quote = xml[pos]; pos++
+                    val quote = xml[pos]
+                    pos++
                     val valEnd = xml.indexOf(quote, pos)
                     if (valEnd < 0) break
-                    val attrValue = xml.substring(pos, valEnd)
+                    val attrValue = unescapeXml(xml.substring(pos, valEnd))
                     pos = valEnd + 1
                     attributes[attrName] = attrValue
                 }
