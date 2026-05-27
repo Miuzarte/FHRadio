@@ -27,8 +27,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import io.github.miuzarte.fhradio.*
 import io.github.miuzarte.fhradio.constants.UiSpacing
-import io.github.miuzarte.fhradio.model.Sample
-import io.github.miuzarte.fhradio.model.SampleType
+import io.github.miuzarte.fhradio.model.*
+import io.github.miuzarte.fhradio.scaffolds.FlowGridState
 import io.github.miuzarte.fhradio.scaffolds.LazyColumn
 import io.github.miuzarte.fhradio.scaffolds.flowGrid
 import io.github.miuzarte.fhradio.util.fmt
@@ -50,6 +50,9 @@ fun TracksScreen(
     val trackListState = rememberLazyListState()
     val stingerListState = rememberLazyListState()
     val djListState = rememberLazyListState()
+    val trackGridState = remember { FlowGridState<TrackSample>() }
+    val stingerGridState = remember { FlowGridState<StingerSample>() }
+    val djGridState = remember { FlowGridState<DjSample>() }
 
     var frameCount by remember { mutableIntStateOf(0) }
     LaunchedEffect(Unit) {
@@ -111,7 +114,23 @@ fun TracksScreen(
                             itemSpacing = UiSpacing.Medium,
                         )
                         AnimatedVisibility(scrollBehavior.state.collapsedFraction < 0.3f) {
-                            Column {
+                            Column(
+                                modifier = Modifier.clickable {
+                                    Radio.trackPlaying?.let { playing ->
+                                        val tracks =
+                                            Radio.selectedStation?.playableTracks(AppSettings.excludedTrackSuffixes)
+                                                ?: emptyList()
+                                        val idx = tracks.indexOf(playing)
+                                        if (idx >= 0) {
+                                            selectedTabIndex = 0
+                                            val row = trackGridState.rowFor(idx)
+                                            scope.launch {
+                                                trackListState.animateScrollToItem(trackGridState.itemIndexForRow(row))
+                                            }
+                                        }
+                                    }
+                                },
+                            ) {
                                 Radio.trackPlaying?.let { track ->
                                     val currentPos = Radio.trackCurrentPos
                                     val isPlaying = track.durationMs > 0L
@@ -206,6 +225,7 @@ fun TracksScreen(
             SampleType.Track -> SampleCardList(
                 samples = tracks,
                 listState = trackListState,
+                gridState = trackGridState,
                 contentPadding = contentPadding,
                 scrollBehavior = scrollBehavior,
                 bottomInnerPadding = bottomInnerPadding,
@@ -229,6 +249,7 @@ fun TracksScreen(
             SampleType.Stinger -> SampleCardList(
                 samples = stingers,
                 listState = stingerListState,
+                gridState = stingerGridState,
                 contentPadding = contentPadding,
                 scrollBehavior = scrollBehavior,
                 bottomInnerPadding = bottomInnerPadding,
@@ -252,6 +273,7 @@ fun TracksScreen(
             SampleType.DJ -> SampleCardList(
                 samples = djSamples,
                 listState = djListState,
+                gridState = djGridState,
                 contentPadding = contentPadding,
                 scrollBehavior = scrollBehavior,
                 bottomInnerPadding = bottomInnerPadding,
@@ -279,6 +301,7 @@ fun TracksScreen(
 private fun <T: Sample> SampleCardList(
     samples: List<T>,
     listState: LazyListState,
+    gridState: FlowGridState<T>,
     contentPadding: PaddingValues,
     scrollBehavior: ScrollBehavior,
     bottomInnerPadding: Dp,
@@ -297,6 +320,19 @@ private fun <T: Sample> SampleCardList(
     }
 
     Box(modifier = Modifier.fillMaxSize()) {
+        BoxWithConstraints(modifier = Modifier.fillMaxWidth().height(0.dp)) {
+            val maxColumns =
+                ((maxWidth - UiSpacing.PageHorizontal * 2 + UiSpacing.PageItem) / (480.dp + UiSpacing.PageItem))
+                    .toInt()
+                    .coerceAtLeast(1)
+            val cols =
+                ((maxWidth - UiSpacing.PageHorizontal * 2 + UiSpacing.PageItem) / (640.dp + UiSpacing.PageItem))
+                    .toInt()
+                    .coerceAtLeast(1)
+                    .let { maxColumns.coerceAtLeast(it) }
+            gridState.columns = cols
+            gridState.rows = samples.withIndex().chunked(cols)
+        }
         LazyColumn(
             contentPadding = contentPadding,
             scrollBehavior = scrollBehavior,
@@ -304,7 +340,7 @@ private fun <T: Sample> SampleCardList(
             bottomInnerPadding = bottomInnerPadding,
             limitLandscapeWidth = false,
         ) {
-            flowGrid(samples) { _, sample ->
+            flowGrid(gridState) { _, sample ->
                 val isActiveCard = remember(getPlaying()) { getPlaying() == sample }
                 Card(
                     modifier = Modifier

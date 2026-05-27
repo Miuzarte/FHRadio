@@ -120,7 +120,34 @@ fun RadiosScreen(
         },
     ) { contentPadding ->
         val listState = rememberLazyListState()
+        val sourceGrids = remember(
+            AppSettings.radioSourcesXml,
+            AppSettings.radioSources,
+        ) {
+            AppSettings.radioSourcesXml.map { source ->
+                val stations = AppSettings.radioSources[source.xmlFilePath] ?: emptyList()
+                val ordered = source.stationOrder
+                    .mapNotNull { num -> stations.find { it.number == num } }
+                    .filterNot { it.name in source.hiddenStationNames }
+                Triple(source, FlowGridState<RadioStation>(), ordered)
+            }
+        }
         Box(modifier = Modifier.fillMaxSize()) {
+            sourceGrids.forEach { (_, gridState, ordered) ->
+                BoxWithConstraints(modifier = Modifier.fillMaxWidth().height(0.dp)) {
+                    val maxColumns =
+                        ((maxWidth - UiSpacing.PageHorizontal * 2 + UiSpacing.PageItem) / (480.dp + UiSpacing.PageItem))
+                            .toInt()
+                            .coerceAtLeast(1)
+                    val cols =
+                        ((maxWidth - UiSpacing.PageHorizontal * 2 + UiSpacing.PageItem) / (640.dp + UiSpacing.PageItem))
+                            .toInt()
+                            .coerceAtLeast(1)
+                            .let { maxColumns.coerceAtLeast(it) }
+                    gridState.columns = cols
+                    gridState.rows = ordered.withIndex().chunked(cols)
+                }
+            }
             LazyColumn(
                 contentPadding = contentPadding,
                 scrollBehavior = scrollBehavior,
@@ -128,13 +155,9 @@ fun RadiosScreen(
                 bottomInnerPadding = bottomInnerPadding,
                 limitLandscapeWidth = false,
             ) {
-                AppSettings.radioSourcesXml.forEach { source ->
+                sourceGrids.forEach { (source, gridState, ordered) ->
                     item { SectionSmallTitle(source.name) }
-                    val stations = AppSettings.radioSources[source.xmlFilePath] ?: emptyList()
-                    val ordered = source.stationOrder
-                        .mapNotNull { num -> stations.find { it.number == num } }
-                        .filterNot { it.name in source.hiddenStationNames }
-                    flowGrid(ordered) { _, station ->
+                    flowGrid(gridState) { _, station ->
                         val isSelected = Radio.selectedStation == station
                         StationCard(
                             station = station,
