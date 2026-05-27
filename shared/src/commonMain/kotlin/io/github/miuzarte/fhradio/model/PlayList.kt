@@ -14,7 +14,7 @@ data class PlayListEntry(
 )
 
 @Serializable
-enum class PlayListType : SampleSource {
+enum class PlayListType: SampleSource {
     FreeRoam,
     Event,
     ShortStinger,

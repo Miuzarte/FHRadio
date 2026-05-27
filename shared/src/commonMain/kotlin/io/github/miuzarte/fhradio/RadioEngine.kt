@@ -7,9 +7,9 @@ sealed class PlayItem {
     abstract val sample: Sample
     abstract val beginAt: Duration
 
-    data class Track(override val sample: TrackSample, override val beginAt: Duration = Duration.ZERO) : PlayItem()
-    data class Stinger(override val sample: StingerSample, override val beginAt: Duration = Duration.ZERO) : PlayItem()
-    data class Dj(override val sample: DjSample, override val beginAt: Duration = Duration.ZERO) : PlayItem()
+    data class Track(override val sample: TrackSample, override val beginAt: Duration = Duration.ZERO): PlayItem()
+    data class Stinger(override val sample: StingerSample, override val beginAt: Duration = Duration.ZERO): PlayItem()
+    data class Dj(override val sample: DjSample, override val beginAt: Duration = Duration.ZERO): PlayItem()
 }
 
 data class PlaySection(

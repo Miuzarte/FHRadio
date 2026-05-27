@@ -34,7 +34,10 @@ object SettingsStore {
 
             crossFadeEnabled = s.getBoolean("cross_fade_enabled", RadioSettings.defaults.crossFadeEnabled),
 
-            excludedTrackSuffixesJson = s.getString("excluded_track_suffixes_json", RadioSettings.defaults.excludedTrackSuffixesJson),
+            excludedTrackSuffixesJson = s.getString(
+                "excluded_track_suffixes_json",
+                RadioSettings.defaults.excludedTrackSuffixesJson,
+            ),
 
             // application
             volume = s.getInt("volume", RadioSettings.defaults.volume),

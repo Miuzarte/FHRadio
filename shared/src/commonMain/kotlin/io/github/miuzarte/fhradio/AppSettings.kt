@@ -100,7 +100,7 @@ object AppSettings {
 
     var excludedTrackSuffixesJson by SettingMutableState(
         radioSettings.excludedTrackSuffixesJson,
-        Radio::reset
+        Radio::reset,
     ) { _, new ->
         saveRadioSettings(radioSettings.copy(excludedTrackSuffixesJson = new))
     }
@@ -189,7 +189,7 @@ object AppSettings {
             radioSettings.copy(
                 lastStationXmlPath = null,
                 lastStationName = null,
-            )
+            ),
         )
 
         val source = station.getSource() ?: return
@@ -198,7 +198,7 @@ object AppSettings {
             radioSettings.copy(
                 lastStationXmlPath = xmlPath,
                 lastStationName = station.name,
-            )
+            ),
         )
     }
 }

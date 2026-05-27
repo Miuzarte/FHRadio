@@ -236,16 +236,16 @@ fun SettingsScreen(
                                             selected = playMode == PlayMode.Shuffle,
                                             onClick = {
                                                 AppSettings.playMode = PlayMode.Shuffle
-                                            }
+                                            },
                                         ),
                                         DropdownItem(
                                             text = "顺序播放",
                                             selected = playMode == PlayMode.Order,
                                             onClick = {
                                                 AppSettings.playMode = PlayMode.Order
-                                            }
-                                        )
-                                    )
+                                            },
+                                        ),
+                                    ),
                                 ),
                                 enabled = true,
                             )
@@ -533,10 +533,16 @@ fun SettingsScreen(
                                 showNodeEditSheet = true
                             },
                             endAction = {
-                                IconButton(onClick = {
-                                    AppSettings.patternNodes = patternNodes.toMutableList().also { it.removeAt(index) }
-                                }) {
-                                    Icon(MiuixIcons.Delete, contentDescription = "删除")
+                                IconButton(
+                                    onClick = {
+                                        AppSettings.patternNodes =
+                                            patternNodes.toMutableList().also { it.removeAt(index) }
+                                    },
+                                ) {
+                                    Icon(
+                                        imageVector = MiuixIcons.Delete,
+                                        contentDescription = "删除",
+                                    )
                                 }
                             },
                         )
@@ -693,7 +699,7 @@ fun SettingsScreen(
                     onClick = {
                         AppSettings.djGameEvents = editingDjGameEvents
                         showDjGameEventsSheet = false
-                    }
+                    },
                 ) {
                     Icon(
                         imageVector = MiuixIcons.Ok,

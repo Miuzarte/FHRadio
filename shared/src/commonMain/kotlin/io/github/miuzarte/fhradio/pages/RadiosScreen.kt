@@ -77,7 +77,7 @@ fun RadiosScreen(
                         entry = DropdownEntry(
                             items = listOf(
                                 DropdownItem(
-                                    text = "导入",
+                                    text = "导入电台源",
                                     icon = { modifier -> Icon(MiuixIcons.Import, null, modifier = modifier) },
                                     onClick = {
                                         scope.launch {
@@ -105,7 +105,7 @@ fun RadiosScreen(
                                     icon = { modifier -> Icon(Icons.Rounded.Settings, null, modifier = modifier) },
                                     onClick = { showManageSheet = true },
                                 ),
-                            )
+                            ),
                         ),
                     ) {
                         Icon(
@@ -169,16 +169,18 @@ fun RadiosScreen(
             }
         },
         endAction = {
-            IconButton(onClick = {
-                val path = pendingXmlPath ?: return@IconButton
-                val folder = pendingAudioPath ?: return@IconButton
-                val ordered = pendingStationOrder.mapNotNull { num -> pendingStations.find { it.number == num } }
-                AppSettings.addRadioSource(
-                    RadioSource(pendingName, path, folder, pendingStationOrder),
-                    ordered,
-                )
-                showSourceSheet = false
-            }) {
+            IconButton(
+                onClick = {
+                    val path = pendingXmlPath ?: return@IconButton
+                    val folder = pendingAudioPath ?: return@IconButton
+                    val ordered = pendingStationOrder.mapNotNull { num -> pendingStations.find { it.number == num } }
+                    AppSettings.addRadioSource(
+                        RadioSource(pendingName, path, folder, pendingStationOrder),
+                        ordered,
+                    )
+                    showSourceSheet = false
+                },
+            ) {
                 Icon(imageVector = MiuixIcons.Ok, contentDescription = "完成")
             }
         },
@@ -331,11 +333,11 @@ fun RadiosScreen(
                                             it.copy(
                                                 hiddenStationNames =
                                                     if (isHidden) it.hiddenStationNames - station.name
-                                                    else it.hiddenStationNames + station.name
+                                                    else it.hiddenStationNames + station.name,
                                             )
                                         }
                                         editingSource?.let { AppSettings.updateRadioSource(it) }
-                                    }
+                                    },
                                 ) {
                                     Icon(
                                         imageVector =
@@ -376,7 +378,7 @@ private fun StationCard(station: RadioStation, selected: Boolean, onClick: () ->
                 Text(
                     station.name,
                     fontWeight = FontWeight.Bold,
-                    color = if (selected) colorScheme.primary else colorScheme.onSurface
+                    color = if (selected) colorScheme.primary else colorScheme.onSurface,
                 )
                 InfoLine(
                     SampleType.Track.toString(),

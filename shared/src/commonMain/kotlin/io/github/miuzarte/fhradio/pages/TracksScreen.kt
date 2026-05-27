@@ -168,7 +168,7 @@ fun TracksScreen(
                                 Scheduler.cancel()
                             }
                         },
-                        cornerRadius = buttonCornerRadius
+                        cornerRadius = buttonCornerRadius,
                     ) {
                         Icon(
                             imageVector = Icons.Rounded.Stop,
@@ -181,7 +181,7 @@ fun TracksScreen(
                                 Radio.nextSection()
                             }
                         },
-                        cornerRadius = buttonCornerRadius
+                        cornerRadius = buttonCornerRadius,
                     ) {
                         Icon(
                             imageVector = Icons.Rounded.SkipNext,
@@ -276,7 +276,7 @@ fun TracksScreen(
 }
 
 @Composable
-private fun <T : Sample> SampleCardList(
+private fun <T: Sample> SampleCardList(
     samples: List<T>,
     listState: LazyListState,
     contentPadding: PaddingValues,

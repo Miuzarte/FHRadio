@@ -5,7 +5,7 @@ import io.github.miuzarte.fhradio.model.RadioStation
 
 class SeedEngine(
     station: RadioStation,
-) : RadioModeEngineV2(station) {
+): RadioModeEngineV2(station) {
     override fun next(current: PlaySection?): PlaySection {
         TODO(TODO_MSG)
     }

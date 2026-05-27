@@ -73,7 +73,7 @@ object RadioXmlParser {
             eventPlayList = playLists.find { it.type == PlayListType.Event }
                 ?: PlayList(PlayListType.Event),
             shortStingerPlayList = playLists.find { it.type == PlayListType.ShortStinger }
-                ?: PlayList(PlayListType.ShortStinger)
+                ?: PlayList(PlayListType.ShortStinger),
         )
     }
 
@@ -86,21 +86,21 @@ object RadioXmlParser {
         isXCloudModeSafe = el.attr("IsXCloudModeSafe").toBoolean(),
         markers = el.children.filter { it.name == "Marker" }.mapNotNull { buildMarkerOrNull(it) },
         loops = el.children.filter { it.name == "Loop" }.mapNotNull { buildLoopOrNull(it) },
-        bpms = el.children.filter { it.name == "BPM" }.map { buildBpm(it) }
+        bpms = el.children.filter { it.name == "BPM" }.map { buildBpm(it) },
     )
 
     private fun buildDj(el: XmlNode): DjSample = DjSample(
         soundName = el.attr("SoundName"),
         sampleLength = el.attr("SampleLength").toInt(),
         sampleRate = el.attr("SampleRate").toInt(),
-        gameEvent = el.attr("GameEvent")
+        gameEvent = el.attr("GameEvent"),
     )
 
     private fun buildStinger(el: XmlNode): StingerSample = StingerSample(
         soundName = el.attr("SoundName"),
         sampleLength = el.attr("SampleLength").toInt(),
         sampleRate = el.attr("SampleRate").toInt(),
-        markers = el.children.filter { it.name == "Marker" }.mapNotNull { buildMarkerOrNull(it) }
+        markers = el.children.filter { it.name == "Marker" }.mapNotNull { buildMarkerOrNull(it) },
     )
 
     private fun buildMarkerOrNull(el: XmlNode): Marker? {
@@ -123,7 +123,7 @@ object RadioXmlParser {
 
     private fun buildBpm(el: XmlNode): BpmEntry = BpmEntry(
         value = el.attr("Value").toFloat(),
-        start = el.attr("Start").toInt()
+        start = el.attr("Start").toInt(),
     )
 
     private fun buildPlayList(el: XmlNode): PlayList {
@@ -144,14 +144,14 @@ object RadioXmlParser {
     private data class XmlNode(
         val name: String,
         val attributes: Map<String, String>,
-        val children: List<XmlNode>
+        val children: List<XmlNode>,
     ) {
         fun attr(key: String): String = attributes[key] ?: ""
     }
 
     private data class ParseResult(
         val node: XmlNode,
-        val nextPos: Int
+        val nextPos: Int,
     )
 
     private fun unescapeXml(s: String): String = s

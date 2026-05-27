@@ -7,7 +7,7 @@ import kotlin.time.Duration.Companion.milliseconds
 sealed interface SampleSource
 
 @Serializable
-enum class SampleType : SampleSource {
+enum class SampleType: SampleSource {
     Track,
     Stinger,
     DJ,
@@ -41,7 +41,7 @@ data class TrackSample(
     val markers: List<Marker> = emptyList(),
     val loops: List<LoopType> = emptyList(),
     val bpms: List<BpmEntry> = emptyList(),
-) : Sample {
+): Sample {
 
     @kotlinx.serialization.Transient
     override var parentStation: RadioStation? = null
@@ -79,7 +79,7 @@ data class StingerSample(
     override val sampleLength: Int,
     override val sampleRate: Int = 48000,
     val markers: List<Marker> = emptyList(),
-) : Sample {
+): Sample {
 
     @kotlinx.serialization.Transient
     override var parentStation: RadioStation? = null
@@ -99,7 +99,7 @@ data class DjSample(
     override val sampleLength: Int,
     override val sampleRate: Int = 48000,
     val gameEvent: String = "",
-) : Sample {
+): Sample {
 
     @kotlinx.serialization.Transient
     override var parentStation: RadioStation? = null

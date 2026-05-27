@@ -73,13 +73,13 @@ fun MainScreen() {
     var isPagerNavigating by remember { mutableStateOf(false) }
 
     val radioScrollBehavior = MiuixScrollBehavior(
-        canScroll = { selectedTab == MainTab.Radio }
+        canScroll = { selectedTab == MainTab.Radio },
     )
     val tracksScrollBehavior = MiuixScrollBehavior(
-        canScroll = { selectedTab == MainTab.Tracks }
+        canScroll = { selectedTab == MainTab.Tracks },
     )
     val settingsScrollBehavior = MiuixScrollBehavior(
-        canScroll = { selectedTab == MainTab.Settings }
+        canScroll = { selectedTab == MainTab.Settings },
     )
 
     fun navigateToTab(tab: MainTab) {

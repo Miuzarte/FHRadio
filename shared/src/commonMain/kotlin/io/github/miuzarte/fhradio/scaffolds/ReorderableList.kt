@@ -78,10 +78,10 @@ class ReorderableList(
                                             .then(
                                                 if (item.onClick != null)
                                                     Modifier.clickable(onClick = item.onClick)
-                                                else Modifier
+                                                else Modifier,
                                             ),
                                         verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(UiSpacing.Small)
+                                        horizontalArrangement = Arrangement.spacedBy(UiSpacing.Small),
                                     ) {
                                         item.icon?.let {
                                             Icon(it, contentDescription = item.title)
@@ -103,7 +103,7 @@ class ReorderableList(
                                     }
                                     Row(
                                         verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(UiSpacing.Small)
+                                        horizontalArrangement = Arrangement.spacedBy(UiSpacing.Small),
                                     ) {
                                         item.endAction?.invoke(this)
                                         if (item.dragEnabled) IconButton(

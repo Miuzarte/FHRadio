@@ -62,7 +62,7 @@ object Scheduler {
                     job = it,
                     tag = tag,
                     delay = delay,
-                )
+                ),
             )
         }
     }

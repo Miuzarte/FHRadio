@@ -46,6 +46,7 @@ sealed class ImportResult {
         val xmlPath: String,
         val audioPath: String,
         val config: RadioConfig,
-    ) : ImportResult()
-    data object Cancelled : ImportResult()
+    ): ImportResult()
+
+    data object Cancelled: ImportResult()
 }

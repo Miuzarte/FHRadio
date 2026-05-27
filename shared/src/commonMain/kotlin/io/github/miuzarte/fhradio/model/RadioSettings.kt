@@ -14,7 +14,7 @@ data class RadioSettings(
     val playMode: PlayMode = PlayMode.Shuffle,
 
     val stingerProbability: Int = 10,
-    val djProbability: Int = 1,
+    val djProbability: Int = 0,
 
     val djGameEventsJson: String = "[]",
 
@@ -37,7 +37,7 @@ data class RadioSettings(
 
     // internal
     val lastStationXmlPath: String? = null,
-    val lastStationName: String? = null
+    val lastStationName: String? = null,
 ) {
 
     // djGameEvents

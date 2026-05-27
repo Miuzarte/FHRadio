@@ -52,7 +52,7 @@ fun LazyColumn(
                     Modifier.pointerInput(Unit) {
                         detectTapGestures(onTap = { focusManager.clearFocus() })
                     }
-                else Modifier
+                else Modifier,
             ),
     ) {
         val contentWidthModifier =
@@ -70,7 +70,7 @@ fun LazyColumn(
                     .then(
                         if (scrollBehavior != null)
                             Modifier.nestedScroll(scrollBehavior.nestedScrollConnection)
-                        else Modifier
+                        else Modifier,
                     ),
                 state = state,
                 contentPadding = mergedContentPadding,

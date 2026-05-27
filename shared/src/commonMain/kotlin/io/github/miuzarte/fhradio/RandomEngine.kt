@@ -10,7 +10,7 @@ class RandomEngine(
     val djProbability: Int,
     val djGameEvents: Set<String>,
     val excludedTrackSuffixes: Set<String>,
-) : RadioModeEngineV2(station) {
+): RadioModeEngineV2(station) {
 
     // 提供 current 时返回值保证不会重复
     override fun next(current: PlaySection?): PlaySection {
@@ -52,7 +52,7 @@ class RandomEngine(
                                 track = PlayItem.Track(
                                     sample = it,
                                     beginAt = pos ?: Duration.ZERO,
-                                )
+                                ),
                             )
                         }
 
@@ -61,7 +61,7 @@ class RandomEngine(
                                 stinger = PlayItem.Stinger(
                                     sample = it,
                                     beginAt = pos ?: Duration.ZERO,
-                                )
+                                ),
                             )
                         }
 
@@ -70,7 +70,7 @@ class RandomEngine(
                                 dj = PlayItem.Dj(
                                     sample = it,
                                     beginAt = pos ?: Duration.ZERO,
-                                )
+                                ),
                             )
                         }
                     }
@@ -82,7 +82,7 @@ class RandomEngine(
         // 带上随机切入点
         playSection.track?.let {
             playSection = playSection.copy(
-                track = it.copy(beginAt = it.sample.randomBeginAt())
+                track = it.copy(beginAt = it.sample.randomBeginAt()),
             )
             // 从 Track 开始播, 其他的不中途切入
             return returnWithUpdate(playSection)
@@ -92,7 +92,7 @@ class RandomEngine(
             playSection.stinger != null -> {
                 playSection.stinger.let {
                     playSection = playSection.copy(
-                        stinger = it.copy(beginAt = it.sample.randomBeginAt())
+                        stinger = it.copy(beginAt = it.sample.randomBeginAt()),
                     )
                 }
             }
@@ -100,7 +100,7 @@ class RandomEngine(
             playSection.dj != null -> {
                 playSection.dj.let {
                     playSection = playSection.copy(
-                        dj = it.copy(beginAt = it.sample.randomBeginAt())
+                        dj = it.copy(beginAt = it.sample.randomBeginAt()),
                     )
                 }
             }
@@ -164,7 +164,7 @@ class RandomEngine(
         return PlaySection(
             track = track?.let { PlayItem.Track(it) },
             stinger = stinger?.let { PlayItem.Stinger(it) },
-            dj = dj?.let { PlayItem.Dj(it) }
+            dj = dj?.let { PlayItem.Dj(it) },
         ).also {
             require(it.isStingerAndDjMutuallyExclusive) { "FIXME: Stinger and DJ coexist" }
         }

@@ -100,7 +100,7 @@
 ### 导入电台源
 
 - 打开 `FHRadio`
-  - 首页右上角三点菜单 -> 导入
+  - 首页右上角三点菜单 -> 导入电台源
   - 先选择 `ForzaHorizon6\media\Audio\RadioInfo_*.xml` 并确认
   - 再选择 `Fmod_Bank_Tools\wav\`(如果未移动) 并确认
     - 选择包含所有电台的 `wav\`, 而不是单个电台文件夹
