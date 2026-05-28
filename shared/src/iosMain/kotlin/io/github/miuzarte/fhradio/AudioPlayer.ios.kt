@@ -3,14 +3,13 @@ package io.github.miuzarte.fhradio
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
-import io.github.miuzarte.fhradio.model.PlaybackStatus
 import io.github.miuzarte.fhradio.model.PlayerState
 import kotlin.time.Duration
 
 actual class AudioPlayer actual constructor(val tag: String) {
     actual var state by mutableStateOf(
         PlayerState(
-            status = PlaybackStatus.Idle,
+            status = PlayerState.Status.Idle,
             currentPath = null,
             position = Duration.ZERO,
             duration = Duration.ZERO,

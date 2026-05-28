@@ -3,6 +3,8 @@ package io.github.miuzarte.fhradio
 import io.github.miuzarte.fhradio.model.*
 import kotlin.random.Random
 import kotlin.time.Duration
+import kotlin.time.Duration.Companion.nanoseconds
+import kotlin.time.Duration.Companion.seconds
 
 class RandomEngine(
     station: RadioStation,
@@ -112,17 +114,6 @@ class RandomEngine(
     override fun getPlayList() =
         playDeque.toList() to null
 
-    // 随机数 helper
-    private fun Int.roll(until: Int = 100): Boolean =
-        Random.nextInt(until) < this
-
-    private fun <T> Int.roll(until: Int = 100, block: () -> T): T? =
-        this.roll(until).run(block)
-
-    private fun <T> Boolean.run(block: () -> T): T? =
-        if (this) block()
-        else null
-
     // 播放队列
     private val playDeque = ArrayDeque<PlaySection>(PLAY_DEQUE_SIZE)
 
@@ -136,14 +127,14 @@ class RandomEngine(
 
     // 按后缀排除的曲目, 始终附加到 randomTrack(exclude) 中
     private val suffixExcludedTracks: Set<TrackSample> by lazy {
-        station.tracks.filterTo(mutableSetOf()) { t ->
+        station.track.filterTo(mutableSetOf()) { t ->
             excludedTrackSuffixes.any { t.soundName.endsWith(it) }
         }
     }
 
     // DJ 白名单, 非空时只播指定 gameEvent 的 DJ
     private val djNotInWhiteList: Set<DjSample> by lazy {
-        station.djSamples.filterTo(mutableSetOf()) {
+        station.dj.filterTo(mutableSetOf()) {
             djGameEvents.isNotEmpty() && it.gameEvent !in djGameEvents
         }
     }
@@ -206,4 +197,51 @@ class RandomEngine(
         // 不能太大, 如 Stinger 通常只有 10 条
         const val PLAYED_DEQUE_SIZE = 5
     }
+
+    // 对 TrackSample 提高 Track.TrackLoopStart 附近的权重
+    // 对 StingerSample 只随机前 1/4
+    // 对 DjSample 只随机前 1/2
+    private fun Sample.randomBeginAt(): Duration {
+        val safeDuration = (duration - 1.seconds) // 留一秒安全区
+            .coerceAtLeast(Duration.ZERO)
+
+        return when (this) {
+            is TrackSample -> {
+                if (trackLoopStart == null || trackLoopStart!! <= Duration.ZERO)
+                    Random.nextDuration(safeDuration)
+                else if (safeDuration <= 1.seconds)
+                    Duration.ZERO
+                else {
+                    60.roll {
+                        Random.nextDuration(trackLoopStart!! * 2)
+                            .coerceAtMost(safeDuration)
+                    } ?: run {
+                        Random.nextDuration(safeDuration)
+                    }
+                }
+            }
+
+            is StingerSample -> Random.nextDuration(safeDuration / 4)
+
+            is DjSample -> Random.nextDuration(safeDuration / 2)
+        }
+    }
+
+    private fun Random.nextDuration(until: Duration): Duration {
+        require(until >= Duration.ZERO) { "until must be non-negative" }
+        val untilNanos = until.inWholeNanoseconds
+        // 如果 until 为 0, 直接返回 0
+        if (untilNanos == 0L) return Duration.ZERO
+        return nextLong(0L, untilNanos).nanoseconds
+    }
+
+    private fun Int.roll(until: Int = 100): Boolean =
+        Random.nextInt(until) < this
+
+    private fun <T> Int.roll(until: Int = 100, block: () -> T): T? =
+        this.roll(until).run(block)
+
+    private fun <T> Boolean.run(block: () -> T): T? =
+        if (this) block()
+        else null
 }

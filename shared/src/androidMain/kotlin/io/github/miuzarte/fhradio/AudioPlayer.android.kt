@@ -8,7 +8,6 @@ import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
-import io.github.miuzarte.fhradio.model.PlaybackStatus
 import io.github.miuzarte.fhradio.model.PlayerState
 import kotlinx.coroutines.*
 import kotlin.time.Duration
@@ -26,38 +25,38 @@ actual class AudioPlayer actual constructor(val tag: String) {
                 override fun onPlaybackStateChanged(state: Int) {
                     when (state) {
                         Player.STATE_IDLE ->
-                            setState(PlaybackStatus.Idle)
+                            setState(PlayerState.Status.Idle)
 
                         Player.STATE_BUFFERING ->
-                            setState(PlaybackStatus.Buffering)
+                            setState(PlayerState.Status.Buffering)
 
                         Player.STATE_READY ->
                             setState(
-                                if (player.playWhenReady) PlaybackStatus.Playing
-                                else PlaybackStatus.Paused,
+                                if (player.playWhenReady) PlayerState.Status.Playing
+                                else PlayerState.Status.Paused,
                             )
 
                         Player.STATE_ENDED ->
-                            setState(PlaybackStatus.Ended)
+                            setState(PlayerState.Status.Ended)
                     }
                 }
 
                 override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) {
                     if (player.playbackState == Player.STATE_READY)
                         setState(
-                            if (playWhenReady) PlaybackStatus.Playing
-                            else PlaybackStatus.Paused,
+                            if (playWhenReady) PlayerState.Status.Playing
+                            else PlayerState.Status.Paused,
                         )
 
                 }
 
                 override fun onIsPlayingChanged(isPlaying: Boolean) {
                     if (isPlaying)
-                        setState(PlaybackStatus.Playing)
+                        setState(PlayerState.Status.Playing)
                 }
 
                 override fun onPlayerError(error: PlaybackException) {
-                    setState(PlaybackStatus.Error)
+                    setState(PlayerState.Status.Error)
                     player.stop()
                 }
             },
@@ -82,7 +81,7 @@ actual class AudioPlayer actual constructor(val tag: String) {
         this.state = state.copy(
             currentPath = path,
             position = beginAt,
-            status = PlaybackStatus.Opening,
+            status = PlayerState.Status.Opening,
         )
         startPositionPolling()
     }
@@ -98,7 +97,7 @@ actual class AudioPlayer actual constructor(val tag: String) {
         positionJob = null
         player.stop()
         this.state = state.copy(
-            status = PlaybackStatus.Stopped,
+            status = PlayerState.Status.Stopped,
             currentPath = null,
             position = Duration.ZERO,
         )
@@ -137,12 +136,12 @@ actual class AudioPlayer actual constructor(val tag: String) {
                     this@AudioPlayer.state =
                         this@AudioPlayer.state.copy(position = pos.milliseconds)
                 }
-                delay(50.milliseconds)
+                delay((1000 / 20).milliseconds)
             }
         }
     }
 
-    private fun setState(status: PlaybackStatus) {
+    private fun setState(status: PlayerState.Status) {
         val pos =
             if (player.currentPosition >= 0) player.currentPosition.milliseconds
             else Duration.ZERO

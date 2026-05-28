@@ -5,32 +5,15 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import io.github.miuzarte.fhradio.model.PlaybackState
 import io.github.miuzarte.fhradio.model.RadioSettings
-import io.github.miuzarte.fhradio.model.RadioSource
+import io.github.miuzarte.fhradio.model.RadioSourceConfig
 import io.github.miuzarte.fhradio.model.RadioStation
 import kotlinx.coroutines.*
 import kotlin.reflect.KProperty
 
-class SettingMutableState<T>(
-    initial: T,
-    private vararg val onChanged: () -> Unit,
-    private val onSet: (oldValue: T, newValue: T) -> Unit = { _, _ -> },
-) {
-    private val state = mutableStateOf(initial)
-    operator fun getValue(thisRef: Any?, property: KProperty<*>) = state.value
-    operator fun setValue(thisRef: Any?, property: KProperty<*>, value: T) {
-        val old = state.value
-        if (old != value) {
-            state.value = value
-            onChanged.forEach { it() }
-            onSet(old, value) // 调用自定义逻辑
-        }
-    }
-}
-
 object AppSettings {
     private val radioSettings get() = SettingsStore.radioSettings
     private fun saveRadioSettings(settings: RadioSettings) = SettingsStore.saveRadioSettings(settings)
-    private fun saveRadioSources(sources: List<RadioSource>) = SettingsStore.saveRadioSources(sources)
+    private fun saveRadioSources(sources: List<RadioSourceConfig>) = SettingsStore.saveRadioSources(sources)
     private fun savePlaybackState(state: PlaybackState) = SettingsStore.savePlaybackState(state)
 
     var radioMode by SettingMutableState(radioSettings.radioMode, Radio::reset) { _, new ->
@@ -58,7 +41,7 @@ object AppSettings {
         get() = radioSources.values
             .asSequence()
             .flatten()
-            .flatMap { it.djSamples }
+            .flatMap { it.dj }
             .map { it.gameEvent }
             .filter { it.isNotEmpty() }
             .distinct()
@@ -122,7 +105,7 @@ object AppSettings {
         saveRadioSettings(radioSettings.copy(lastStationName = new))
     }
 
-    var radioSourcesXml by SettingMutableState(SettingsStore.radioSourcesXml) { _, new ->
+    var radioSourcesXml by SettingMutableState(SettingsStore.radioSourcesConfig) { _, new ->
         saveRadioSources(new)
     }
 
@@ -135,12 +118,12 @@ object AppSettings {
     var radioSources: Map<String, List<RadioStation>> by mutableStateOf(emptyMap())
         private set
 
-    fun addRadioSource(source: RadioSource, stations: List<RadioStation>) {
+    fun addRadioSource(source: RadioSourceConfig, stations: List<RadioStation>) {
         radioSourcesXml = radioSourcesXml + source
         radioSources = radioSources + (source.xmlFilePath to stations)
     }
 
-    fun updateRadioSource(source: RadioSource) {
+    fun updateRadioSource(source: RadioSourceConfig) {
         radioSourcesXml = radioSourcesXml.map {
             // 根据 xml path 判断更新指定的源
             if (it.xmlFilePath == source.xmlFilePath) source
@@ -175,7 +158,7 @@ object AppSettings {
         }
     }
 
-    fun RadioStation.getSource(): RadioSource? {
+    fun RadioStation.getSource(): RadioSourceConfig? {
         for ((xmlPath, stations) in radioSources) {
             if (stations.any { it === this })
                 return radioSourcesXml
@@ -200,5 +183,22 @@ object AppSettings {
                 lastStationName = station.name,
             ),
         )
+    }
+
+    private class SettingMutableState<T>(
+        initial: T,
+        private vararg val onChanged: () -> Unit,
+        private val onSet: (oldValue: T, newValue: T) -> Unit = { _, _ -> },
+    ) {
+        private val state = mutableStateOf(initial)
+        operator fun getValue(thisRef: Any?, property: KProperty<*>) = state.value
+        operator fun setValue(thisRef: Any?, property: KProperty<*>, value: T) {
+            val old = state.value
+            if (old != value) {
+                state.value = value
+                onChanged.forEach { it() }
+                onSet(old, value) // 调用自定义逻辑
+            }
+        }
     }
 }

@@ -1,6 +1,6 @@
 package io.github.miuzarte.fhradio
 
-import io.github.miuzarte.fhradio.model.RadioConfig
+import io.github.miuzarte.fhradio.model.RadioInfo
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlin.time.measureTimedValue
@@ -20,9 +20,9 @@ suspend fun importRadio(): ImportResult {
 
         val verify = AudioScanner().verifyOnly(result, folder)
 
-        val totalTracks = result.stations.sumOf { it.tracks.size }
-        val totalStingers = result.stations.sumOf { it.stingers.size }
-        val totalDj = result.stations.sumOf { it.djSamples.size }
+        val totalTracks = result.stations.sumOf { it.track.size }
+        val totalStingers = result.stations.sumOf { it.stinger.size }
+        val totalDj = result.stations.sumOf { it.dj.size }
 
         if (!verify.anyMatched) {
             withContext(Dispatchers.Main) {
@@ -45,7 +45,7 @@ sealed class ImportResult {
     data class Success(
         val xmlPath: String,
         val audioPath: String,
-        val config: RadioConfig,
+        val config: RadioInfo,
     ): ImportResult()
 
     data object Cancelled: ImportResult()

@@ -8,7 +8,7 @@ import androidx.compose.ui.window.rememberWindowState
 import io.github.miuzarte.fhradio.pages.MainScreen
 
 fun main() = application {
-    val windowState = rememberWindowState(size = DpSize(800.dp, 960.dp))
+    val windowState = rememberWindowState(size = DpSize(1080.dp, 960.dp))
 
     Window(
         onCloseRequest = {
@@ -19,8 +19,8 @@ fun main() = application {
         },
         state = windowState,
         title =
-            if (Radio.selectedStation == null || Radio.trackPlaying == null) "FHRadio"
-            else "${Radio.trackPlaying!!.displayName} - ${Radio.trackPlaying!!.artist} - ${Radio.selectedStation!!.name} - FHRadio",
+            if (Radio.selectedStation == null || Radio.trackSlot.playing == null) "FHRadio"
+            else "${Radio.trackSlot.playing!!.displayName} - ${Radio.trackSlot.playing!!.artist} - ${Radio.selectedStation!!.name} - FHRadio",
     ) {
         MainScreen()
     }

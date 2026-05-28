@@ -1,6 +1,6 @@
 package io.github.miuzarte.fhradio
 
-import io.github.miuzarte.fhradio.model.RadioConfig
+import io.github.miuzarte.fhradio.model.RadioInfo
 
 data class VerifyResult(
     val stationResults: List<StationVerifyResult>,
@@ -33,5 +33,5 @@ data class StationVerifyResult(
 }
 
 expect class AudioScanner() {
-    fun verifyOnly(config: RadioConfig, folderPath: String): VerifyResult
+    fun verifyOnly(config: RadioInfo, folderPath: String): VerifyResult
 }

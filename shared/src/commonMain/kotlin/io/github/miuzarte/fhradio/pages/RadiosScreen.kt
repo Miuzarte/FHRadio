@@ -24,7 +24,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import io.github.miuzarte.fhradio.*
 import io.github.miuzarte.fhradio.constants.UiSpacing
-import io.github.miuzarte.fhradio.model.RadioSource
+import io.github.miuzarte.fhradio.model.RadioSourceConfig
 import io.github.miuzarte.fhradio.model.RadioStation
 import io.github.miuzarte.fhradio.model.Sample
 import io.github.miuzarte.fhradio.model.SampleType
@@ -65,7 +65,7 @@ fun RadiosScreen(
 
     // 电台编辑
     var showStationOrderSheet by remember { mutableStateOf(false) }
-    var editingSource by remember { mutableStateOf<RadioSource?>(null) }
+    var editingSource by remember { mutableStateOf<RadioSourceConfig?>(null) }
 
     Scaffold(
         topBar = {
@@ -87,7 +87,7 @@ fun RadiosScreen(
                                                 when (val result = importRadio()) {
                                                     is ImportResult.Cancelled -> parseError = "已取消导入"
                                                     is ImportResult.Success -> {
-                                                        val source = RadioSource(
+                                                        val source = RadioSourceConfig(
                                                             name = "新电台源",
                                                             xmlFilePath = result.xmlPath,
                                                             audioFolderPath = result.audioPath,
@@ -292,7 +292,7 @@ fun RadiosScreen(
                             ReorderableList.Item(
                                 id = station.number.toString(),
                                 title = station.name,
-                                subtitle = "${playableTracks.size} 曲目 | ${station.stingers.size} Stinger | ${station.djSamples.size} DJ",
+                                subtitle = "${playableTracks.size} 曲目 | ${station.stinger.size} Stinger | ${station.dj.size} DJ",
                             ) {
                                 val isHidden = station.name in source.hiddenStationNames
                                 IconButton(
@@ -359,11 +359,11 @@ private fun StationCard(station: RadioStation, selected: Boolean, onClick: () ->
                 )
                 InfoLine(
                     SampleType.Stinger.toString(),
-                    "${station.stingers.size} | ${station.stingers.totalDuration()}",
+                    "${station.stinger.size} | ${station.stinger.totalDuration()}",
                 )
                 InfoLine(
                     SampleType.DJ.toString(),
-                    "${station.djSamples.size} | ${station.djSamples.totalDuration()}",
+                    "${station.dj.size} | ${station.dj.totalDuration()}",
                 )
             }
             ActiveIcon(selected)

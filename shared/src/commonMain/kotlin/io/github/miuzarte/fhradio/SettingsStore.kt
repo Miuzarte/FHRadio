@@ -92,18 +92,18 @@ object SettingsStore {
 
     private val json = Json { ignoreUnknownKeys = true }
 
-    var radioSourcesXml =
+    var radioSourcesConfig =
         runCatching {
             val sourcesStr = s.getString("sources_json", "[]")
-            json.decodeFromString<List<RadioSource>>(sourcesStr)
+            json.decodeFromString<List<RadioSourceConfig>>(sourcesStr)
         }.getOrDefault(emptyList())
         private set
 
-    fun saveRadioSources(sources: List<RadioSource>) {
-        radioSourcesXml = sources
+    fun saveRadioSources(sources: List<RadioSourceConfig>) {
+        radioSourcesConfig = sources
 
         scope.launch {
-            val sourcesJson = json.encodeToString<List<RadioSource>>(sources)
+            val sourcesJson = json.encodeToString<List<RadioSourceConfig>>(sources)
             s.putString("sources_json", sourcesJson)
         }
     }

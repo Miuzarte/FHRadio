@@ -122,7 +122,7 @@ fun TracksScreen(
                             Column(
                                 modifier = Modifier.clickable {
                                     haptic.contextClick()
-                                    Radio.trackPlaying?.let { playing ->
+                                    Radio.trackSlot.playing?.let { playing ->
                                         val tracks =
                                             Radio.selectedStation?.playableTracks(AppSettings.excludedTrackSuffixes)
                                                 ?: emptyList()
@@ -137,8 +137,8 @@ fun TracksScreen(
                                     }
                                 },
                             ) {
-                                Radio.trackPlaying?.let { track ->
-                                    val currentPos = Radio.trackDisplayPos
+                                Radio.trackSlot.playing?.let { track ->
+                                    val currentPos = Radio.trackSlot.displayPos
                                     val isPlaying = track.durationMs > 0L
                                             && currentPos?.let { it < track.duration } ?: true
                                     if (isPlaying) {
@@ -228,8 +228,8 @@ fun TracksScreen(
                 station?.playableTracks(AppSettings.excludedTrackSuffixes) ?: emptyList()
             }
         }
-        val stingers by remember { derivedStateOf { station?.stingers ?: emptyList() } }
-        val djSamples by remember { derivedStateOf { station?.djSamples ?: emptyList() } }
+        val stingers by remember { derivedStateOf { station?.stinger ?: emptyList() } }
+        val djSamples by remember { derivedStateOf { station?.dj ?: emptyList() } }
         when (tabs[selectedTabIndex]) {
             SampleType.Track -> SampleCardList(
                 samples = tracks,
@@ -238,8 +238,8 @@ fun TracksScreen(
                 contentPadding = contentPadding,
                 scrollBehavior = scrollBehavior,
                 bottomInnerPadding = bottomInnerPadding,
-                getPlaying = { Radio.trackPlaying },
-                getCurrentPos = { Radio.trackDisplayPos },
+                getPlaying = { Radio.trackSlot.playing },
+                getCurrentPos = { Radio.trackSlot.displayPos },
                 playSectionFactory = { PlaySection(track = PlayItem.Track(sample = it)) },
                 errorLabel = SampleType.Track.toString(),
                 displayContent = { sample, isPlaying ->
@@ -263,8 +263,8 @@ fun TracksScreen(
                 contentPadding = contentPadding,
                 scrollBehavior = scrollBehavior,
                 bottomInnerPadding = bottomInnerPadding,
-                getPlaying = { Radio.stingerPlaying },
-                getCurrentPos = { Radio.stingerDisplayPos },
+                getPlaying = { Radio.stingerSlot.playing },
+                getCurrentPos = { Radio.stingerSlot.displayPos },
                 playSectionFactory = { PlaySection(stinger = PlayItem.Stinger(sample = it)) },
                 errorLabel = SampleType.Stinger.toString(),
                 displayContent = { sample, isPlaying ->
@@ -287,8 +287,8 @@ fun TracksScreen(
                 contentPadding = contentPadding,
                 scrollBehavior = scrollBehavior,
                 bottomInnerPadding = bottomInnerPadding,
-                getPlaying = { Radio.djPlaying },
-                getCurrentPos = { Radio.djDisplayPos },
+                getPlaying = { Radio.djSlot.playing },
+                getCurrentPos = { Radio.djSlot.displayPos },
                 playSectionFactory = { PlaySection(dj = PlayItem.Dj(sample = it)) },
                 errorLabel = SampleType.DJ.toString(),
                 displayContent = { sample, isPlaying ->

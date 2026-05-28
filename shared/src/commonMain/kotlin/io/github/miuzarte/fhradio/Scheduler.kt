@@ -91,7 +91,7 @@ object Scheduler {
                     }
                 }
 
-                delay(50.milliseconds)
+                delay((1000 / 20).milliseconds)
             }
         }
     }

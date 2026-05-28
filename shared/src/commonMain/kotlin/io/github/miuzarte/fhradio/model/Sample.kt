@@ -38,37 +38,32 @@ data class TrackSample(
     val displayName: String,
     val artist: String,
     val isXCloudModeSafe: Boolean = true,
-    val markers: List<Marker> = emptyList(),
-    val loops: List<LoopType> = emptyList(),
-    val bpms: List<BpmEntry> = emptyList(),
+
+    val marker: List<Marker> = emptyList(),
+    val loop: List<Loop> = emptyList(),
+    val bpmList: List<Bpm> = emptyList(),
 ): Sample {
 
     @kotlinx.serialization.Transient
     override var parentStation: RadioStation? = null
 
-    private fun positionOf(type: MarkerType): Duration? =
-        markers.find { it.name == type }?.position(sampleRate)
+    private fun positionOf(type: Marker.Type): Duration? =
+        marker.find { it.name == type }?.position(sampleRate)
 
-    val trackStart get() = positionOf(MarkerType.TrackStart)
-    val djDrop get() = positionOf(MarkerType.DJDrop)
-    val trackDrop get() = positionOf(MarkerType.TrackDrop)
-    val trackLoopStart get() = positionOf(MarkerType.TrackLoopStart)
-    val trackLoopEnd get() = positionOf(MarkerType.TrackLoopEnd)
-    val djSegment get() = positionOf(MarkerType.DJSegment)
-    val postDrop get() = positionOf(MarkerType.PostDrop)
-    val postRaceLoopStart get() = positionOf(MarkerType.PostRaceLoopStart)
-    val postRaceLoopEnd get() = positionOf(MarkerType.PostRaceLoopEnd)
-    val stingerStart get() = positionOf(MarkerType.StingerStart)
-    val djStart get() = positionOf(MarkerType.DJStart)
-    override val end get() = positionOf(MarkerType.End) ?: super.end
+    val trackStart get() = positionOf(Marker.Type.TrackStart)
+    val djDrop get() = positionOf(Marker.Type.DJDrop)
+    val trackDrop get() = positionOf(Marker.Type.TrackDrop)
+    val trackLoopStart get() = positionOf(Marker.Type.TrackLoopStart)
+    val trackLoopEnd get() = positionOf(Marker.Type.TrackLoopEnd)
+    val djSegment get() = positionOf(Marker.Type.DJSegment)
+    val postDrop get() = positionOf(Marker.Type.PostDrop)
+    val postRaceLoopStart get() = positionOf(Marker.Type.PostRaceLoopStart)
+    val postRaceLoopEnd get() = positionOf(Marker.Type.PostRaceLoopEnd)
+    val stingerStart get() = positionOf(Marker.Type.StingerStart)
+    val djStart get() = positionOf(Marker.Type.DJStart)
+    override val end get() = positionOf(Marker.Type.End) ?: super.end
 
-    fun loopRangePos(type: LoopType): IntRange? {
-        if (type !in loops) return null
-        return (markers.find { it.name == type.startMarker }?.position ?: -1)..
-                (markers.find { it.name == type.endMarker }?.position ?: -1)
-    }
-
-    val bpm: Float get() = bpms.firstOrNull()?.value ?: 0f
+    val bpm: Float get() = bpmList.firstOrNull()?.value ?: 0f
 
 }
 
@@ -78,17 +73,18 @@ data class StingerSample(
     override val soundName: String,
     override val sampleLength: Int,
     override val sampleRate: Int = 48000,
-    val markers: List<Marker> = emptyList(),
+
+    val marker: List<Marker> = emptyList(),
 ): Sample {
 
     @kotlinx.serialization.Transient
     override var parentStation: RadioStation? = null
 
-    private fun positionOf(type: MarkerType): Duration? =
-        markers.find { it.name == type }?.position(sampleRate)
+    private fun positionOf(type: Marker.Type): Duration? =
+        marker.find { it.name == type }?.position(sampleRate)
 
-    val startNextTrack get() = positionOf(MarkerType.StartNextTrack)
-    override val end get() = positionOf(MarkerType.End) ?: super.end
+    val startNextTrack get() = positionOf(Marker.Type.StartNextTrack)
+    override val end get() = positionOf(Marker.Type.End) ?: super.end
 
 }
 
@@ -98,7 +94,7 @@ data class DjSample(
     override val soundName: String,
     override val sampleLength: Int,
     override val sampleRate: Int = 48000,
-    val gameEvent: String = "",
+    val gameEvent: String,
 ): Sample {
 
     @kotlinx.serialization.Transient
@@ -108,54 +104,62 @@ data class DjSample(
 
 @Serializable
 data class Marker(
-    val name: MarkerType,
-    val position: Int,
+    val name: Type,
+    val position: Int = -1,
 ) {
     fun positionMs(sampleRate: Int = 48000): Long =
-        position * 1_000L / sampleRate
-
-    fun positionSec(sampleRate: Int = 48000): Double =
-        position.toDouble() / sampleRate
+        if (position > 0) position * 1_000L / sampleRate
+        else position.toLong()
 
     fun position(sampleRate: Int = 48000): Duration =
-        positionMs().milliseconds
+        positionMs(sampleRate).milliseconds
+
+    @Serializable
+    enum class Type {
+        // Track
+        VeryStart,
+        TrackStart,
+        DJDrop,
+        TrackDrop,
+        TrackLoopStart,
+        TrackLoopEnd,
+        DJSegment,
+        PostDrop,
+        PostRaceLoopStart,
+        PostRaceLoopEnd,
+        StingerStart,
+        DJStart,
+
+        // Stinger
+        StartNextTrack,
+
+        // generic
+        End,
+
+    }
 
 }
 
 @Serializable
-data class BpmEntry(
+enum class Loop(
+    val startMarker: Marker.Type,
+    val endMarker: Marker.Type,
+) {
+    TrackMain(Marker.Type.TrackLoopStart, Marker.Type.TrackLoopEnd),
+    TrackPostRace(Marker.Type.PostRaceLoopStart, Marker.Type.PostRaceLoopEnd),
+
+}
+
+@Serializable
+data class Bpm(
     val value: Float,
     val start: Int,
 ) {
     fun startMs(sampleRate: Int = 48000): Long =
-        start * 1000L / sampleRate
+        if (start > 0) start * 1000L / sampleRate
+        else start.toLong()
 
-}
-
-@Serializable
-enum class MarkerType {
-    TrackStart,
-    DJDrop,
-    TrackDrop,
-    TrackLoopStart,
-    TrackLoopEnd,
-    DJSegment,
-    PostDrop,
-    PostRaceLoopStart,
-    PostRaceLoopEnd,
-    StingerStart,
-    DJStart,
-    End,
-    StartNextTrack,
-
-}
-
-@Serializable
-enum class LoopType(
-    val startMarker: MarkerType,
-    val endMarker: MarkerType,
-) {
-    TrackMain(MarkerType.TrackLoopStart, MarkerType.TrackLoopEnd),
-    TrackPostRace(MarkerType.PostRaceLoopStart, MarkerType.PostRaceLoopEnd),
+    fun start(sampleRate: Int = 48000): Duration =
+        startMs(sampleRate).milliseconds
 
 }

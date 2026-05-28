@@ -162,7 +162,21 @@ class PlayerEngine(
         }
     }
 
+    private fun selectPoolByWeight(pools: Map<SampleType, ArrayDeque<Sample>>): ArrayDeque<Sample>? {
+        val total = pools.values.sumOf { it.size }
+        if (total == 0) return null
+        var index = Random.nextInt(total)
+        for (pool in pools.values) {
+            if (index < pool.size) return pool
+            index -= pool.size
+        }
+        error("unreachable")
+    }
+
     private fun buildPatternPlaylist(): List<Sample> {
+        fun Int.roll(until: Int = 100): Boolean =
+            Random.nextInt(until) < this
+
         val typeLists = patternNodes.map { it.type }.toSet()
             .associateWith { type ->
                 station.samplesFor(type)
@@ -205,15 +219,4 @@ class PlayerEngine(
 
         return playlist
     }
-}
-
-private fun selectPoolByWeight(pools: Map<SampleType, ArrayDeque<Sample>>): ArrayDeque<Sample>? {
-    val total = pools.values.sumOf { it.size }
-    if (total == 0) return null
-    var index = Random.nextInt(total)
-    for (pool in pools.values) {
-        if (index < pool.size) return pool
-        index -= pool.size
-    }
-    error("unreachable")
 }

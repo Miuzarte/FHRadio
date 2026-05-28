@@ -3,7 +3,7 @@ package io.github.miuzarte.fhradio.model
 import kotlinx.serialization.Serializable
 
 @Serializable
-data class RadioSource(
+data class RadioSourceConfig(
     val name: String = "新电台源",
     val xmlFilePath: String,
     val audioFolderPath: String,

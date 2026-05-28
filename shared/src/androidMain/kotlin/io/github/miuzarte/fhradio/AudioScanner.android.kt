@@ -3,12 +3,12 @@ package io.github.miuzarte.fhradio
 import android.net.Uri
 import androidx.documentfile.provider.DocumentFile
 import io.github.miuzarte.fhradio.constants.SUPPORTED_FORMATS
-import io.github.miuzarte.fhradio.model.RadioConfig
+import io.github.miuzarte.fhradio.model.RadioInfo
 import io.github.miuzarte.fhradio.model.SampleType
 
 actual class AudioScanner {
 
-    actual fun verifyOnly(config: RadioConfig, folderPath: String): VerifyResult {
+    actual fun verifyOnly(config: RadioInfo, folderPath: String): VerifyResult {
         val context = AndroidBridge.activity
         val treeUri = Uri.parse(folderPath)
         val root = DocumentFile.fromTreeUri(context, treeUri) ?: return VerifyResult(emptyList())
@@ -20,9 +20,9 @@ actual class AudioScanner {
                 if (stationDir == null || !stationDir.isDirectory) {
                     StationVerifyResult(
                         station.name, false,
-                        0, station.tracks.size,
-                        0, station.stingers.size,
-                        0, station.djSamples.size,
+                        0, station.track.size,
+                        0, station.stinger.size,
+                        0, station.dj.size,
                     )
                 } else {
                     val trackDir = stationDir.findFile(SampleType.Track.toString())
@@ -33,15 +33,15 @@ actual class AudioScanner {
                     val stingerFiles = listDirFiles(stingerDir)
                     val djFiles = listDirFiles(djDir)
 
-                    val trackMatched = station.tracks.count { t ->
+                    val trackMatched = station.track.count { t ->
                         SUPPORTED_FORMATS.any { ext -> "${t.soundName}.$ext" in trackFiles }
                     }
 
                     StationVerifyResult(
                         station.name, true,
-                        trackMatched, station.tracks.size,
-                        stingerFiles.size, station.stingers.size,
-                        djFiles.size, station.djSamples.size,
+                        trackMatched, station.track.size,
+                        stingerFiles.size, station.stinger.size,
+                        djFiles.size, station.dj.size,
                     )
                 }
             }

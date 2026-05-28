@@ -3,9 +3,7 @@ package io.github.miuzarte.fhradio
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
-import io.github.miuzarte.fhradio.model.PlaybackStatus
 import io.github.miuzarte.fhradio.model.PlayerState
-import kotlinx.coroutines.*
 import okio.Path.Companion.toPath
 import uk.co.caprica.vlcj.factory.MediaPlayerFactory
 import uk.co.caprica.vlcj.player.base.MediaPlayer
@@ -34,31 +32,31 @@ actual class AudioPlayer actual constructor(val tag: String) {
         player.events().addMediaPlayerEventListener(
             object: MediaPlayerEventAdapter() {
                 override fun playing(mediaPlayer: MediaPlayer) {
-                    state = state.copy(status = PlaybackStatus.Playing)
+                    state = state.copy(status = PlayerState.Status.Playing)
                 }
 
                 override fun paused(mediaPlayer: MediaPlayer) {
-                    state = state.copy(status = PlaybackStatus.Paused)
+                    state = state.copy(status = PlayerState.Status.Paused)
                 }
 
                 override fun stopped(mediaPlayer: MediaPlayer) {
-                    state = state.copy(status = PlaybackStatus.Stopped, currentPath = null, duration = Duration.ZERO)
+                    state = state.copy(status = PlayerState.Status.Stopped, currentPath = null, duration = Duration.ZERO)
                 }
 
                 override fun finished(mediaPlayer: MediaPlayer) {
-                    state = state.copy(status = PlaybackStatus.Ended, currentPath = null, duration = Duration.ZERO)
+                    state = state.copy(status = PlayerState.Status.Ended, currentPath = null, duration = Duration.ZERO)
                 }
 
                 override fun error(mediaPlayer: MediaPlayer) {
-                    state = state.copy(status = PlaybackStatus.Error, currentPath = null, duration = Duration.ZERO)
+                    state = state.copy(status = PlayerState.Status.Error, currentPath = null, duration = Duration.ZERO)
                 }
 
                 override fun opening(mediaPlayer: MediaPlayer) {
-                    state = state.copy(status = PlaybackStatus.Opening)
+                    state = state.copy(status = PlayerState.Status.Opening)
                 }
 
                 override fun buffering(mediaPlayer: MediaPlayer, newCache: Float) {
-                    state = state.copy(status = PlaybackStatus.Buffering)
+                    state = state.copy(status = PlayerState.Status.Buffering)
                 }
 
                 override fun timeChanged(mediaPlayer: MediaPlayer, newTime: Long) {
@@ -86,7 +84,7 @@ actual class AudioPlayer actual constructor(val tag: String) {
     actual fun play(path: String, beginAt: Duration) {
         val beginMs = beginAt.inWholeMilliseconds
         player.controls().stop()
-        state = state.copy(currentPath = path, position = beginAt, status = PlaybackStatus.Opening)
+        state = state.copy(currentPath = path, position = beginAt, status = PlayerState.Status.Opening)
         player.media().play(path)
         if (beginMs > 0) {
             player.controls().setTime(beginMs)

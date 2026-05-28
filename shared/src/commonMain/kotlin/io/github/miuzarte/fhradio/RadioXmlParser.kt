@@ -4,7 +4,7 @@ import io.github.miuzarte.fhradio.model.*
 
 object RadioXmlParser {
 
-    fun parse(xml: String): RadioConfig {
+    fun parse(xml: String): RadioInfo {
         val root = parseElement(xml.trimStart(), 0).node
         val version = root.attr("Version").toInt()
         val djInterval = root.attr("TimeBetweenMidTrackDJLines").toInt()
@@ -18,26 +18,26 @@ object RadioXmlParser {
         // 虚拟电台 (如 Streamer Mode) 回填 parentStation
         val nameToStation = mutableMapOf<String, RadioStation>()
         stations.forEach { s ->
-            s.tracks.forEach { nameToStation.getOrPut(it.soundName) { s } }
-            s.stingers.forEach { nameToStation.getOrPut(it.soundName) { s } }
-            s.djSamples.forEach { nameToStation.getOrPut(it.soundName) { s } }
+            s.track.forEach { nameToStation.getOrPut(it.soundName) { s } }
+            s.stinger.forEach { nameToStation.getOrPut(it.soundName) { s } }
+            s.dj.forEach { nameToStation.getOrPut(it.soundName) { s } }
         }
         stations.forEach { s ->
-            s.tracks.forEach { sample ->
+            s.track.forEach { sample ->
                 val parent = nameToStation[sample.soundName]
                 if (parent != null && parent !== s) sample.parentStation = parent
             }
-            s.stingers.forEach { sample ->
+            s.stinger.forEach { sample ->
                 val parent = nameToStation[sample.soundName]
                 if (parent != null && parent !== s) sample.parentStation = parent
             }
-            s.djSamples.forEach { sample ->
+            s.dj.forEach { sample ->
                 val parent = nameToStation[sample.soundName]
                 if (parent != null && parent !== s) sample.parentStation = parent
             }
         }
 
-        return RadioConfig(version, djInterval, recentSize, stations)
+        return RadioInfo(version, djInterval, recentSize, stations)
     }
 
     private fun buildStation(el: XmlNode): RadioStation {
@@ -45,86 +45,91 @@ object RadioXmlParser {
         val number = el.attr("Number").toInt()
         val djCharId = el.attr("DJCharID").toInt()
 
+        val banks = el.children.filter { it.name == "Banks" }.map { Bank(it.attr("Name")) }
+
         val sampleLists = el.children.filter { it.name == "SampleList" }
-
-        val tracks = sampleLists
+        val track = sampleLists
             .find { it.attr("Type") == SampleType.Track.toString() }
-            ?.children?.map { buildTrack(it) } ?: emptyList()
-
-        val djSamples = sampleLists
+            ?.children?.map { buildTrack(it) }
+        val dj = sampleLists
             .find { it.attr("Type") == SampleType.DJ.toString() }
-            ?.children?.map { buildDj(it) } ?: emptyList()
-
-        val stingers = sampleLists
+            ?.children?.map { buildDj(it) }
+        val stinger = sampleLists
             .find { it.attr("Type") == SampleType.Stinger.toString() }
-            ?.children?.map { buildStinger(it) } ?: emptyList()
+            ?.children?.map { buildStinger(it) }
 
         val playLists = el.children.filter { it.name == "PlayList" }.map { buildPlayList(it) }
+        val freeRoam = playLists.find { it.type == PlayListType.FreeRoam }
+        val event = playLists.find { it.type == PlayListType.Event }
+        val shortStinger = playLists.find { it.type == PlayListType.ShortStinger }
 
         return RadioStation(
             name = name,
             number = number,
             djCharId = djCharId,
-            tracks = tracks,
-            djSamples = djSamples,
-            stingers = stingers,
-            freeRoamPlayList = playLists.find { it.type == PlayListType.FreeRoam }
-                ?: PlayList(PlayListType.FreeRoam),
-            eventPlayList = playLists.find { it.type == PlayListType.Event }
-                ?: PlayList(PlayListType.Event),
-            shortStingerPlayList = playLists.find { it.type == PlayListType.ShortStinger }
-                ?: PlayList(PlayListType.ShortStinger),
+            banks = banks,
+            track = track ?: emptyList(),
+            dj = dj ?: emptyList(),
+            stinger = stinger ?: emptyList(),
+            freeRoam = freeRoam ?: PlayList(type = PlayListType.FreeRoam),
+            event = event ?: PlayList(type = PlayListType.Event),
+            shortStinger = shortStinger ?: PlayList(type = PlayListType.ShortStinger),
         )
     }
 
-    private fun buildTrack(el: XmlNode): TrackSample = TrackSample(
-        soundName = el.attr("SoundName"),
-        sampleLength = el.attr("SampleLength").toInt(),
-        sampleRate = el.attr("SampleRate").toInt(),
-        displayName = el.attr("DisplayName"),
-        artist = el.attr("Artist"),
-        isXCloudModeSafe = el.attr("IsXCloudModeSafe").toBoolean(),
-        markers = el.children.filter { it.name == "Marker" }.mapNotNull { buildMarkerOrNull(it) },
-        loops = el.children.filter { it.name == "Loop" }.mapNotNull { buildLoopOrNull(it) },
-        bpms = el.children.filter { it.name == "BPM" }.map { buildBpm(it) },
-    )
+    private fun buildTrack(el: XmlNode) =
+        TrackSample(
+            soundName = el.attr("SoundName"),
+            sampleLength = el.attr("SampleLength").toInt(),
+            sampleRate = el.attr("SampleRate").toInt(),
+            displayName = el.attr("DisplayName"),
+            artist = el.attr("Artist"),
+            isXCloudModeSafe = el.attr("IsXCloudModeSafe").toBoolean(),
 
-    private fun buildDj(el: XmlNode): DjSample = DjSample(
-        soundName = el.attr("SoundName"),
-        sampleLength = el.attr("SampleLength").toInt(),
-        sampleRate = el.attr("SampleRate").toInt(),
-        gameEvent = el.attr("GameEvent"),
-    )
+            marker = el.children.filter { it.name == "Marker" }.mapNotNull { buildMarkerOrNull(it) },
+            loop = el.children.filter { it.name == "Loop" }.mapNotNull { buildLoopOrNull(it) },
+            bpmList = el.children.filter { it.name == "BPM" }.map { buildBpm(it) },
+        )
 
-    private fun buildStinger(el: XmlNode): StingerSample = StingerSample(
-        soundName = el.attr("SoundName"),
-        sampleLength = el.attr("SampleLength").toInt(),
-        sampleRate = el.attr("SampleRate").toInt(),
-        markers = el.children.filter { it.name == "Marker" }.mapNotNull { buildMarkerOrNull(it) },
-    )
+    private fun buildStinger(el: XmlNode) =
+        StingerSample(
+            soundName = el.attr("SoundName"),
+            sampleLength = el.attr("SampleLength").toInt(),
+            sampleRate = el.attr("SampleRate").toInt(),
 
-    private fun buildMarkerOrNull(el: XmlNode): Marker? {
-        val name = el.attr("Name")
-        return try {
-            Marker(name = MarkerType.valueOf(name), position = el.attr("Position").toInt())
+            marker = el.children.filter { it.name == "Marker" }.mapNotNull { buildMarkerOrNull(it) },
+        )
+
+    private fun buildDj(el: XmlNode) =
+        DjSample(
+            soundName = el.attr("SoundName"),
+            sampleLength = el.attr("SampleLength").toInt(),
+            sampleRate = el.attr("SampleRate").toInt(),
+            gameEvent = el.attr("GameEvent"),
+        )
+
+    private fun buildMarkerOrNull(el: XmlNode): Marker? =
+        try {
+            Marker(
+                name = Marker.Type.valueOf(el.attr("Name")),
+                position = el.attr("Position").toInt(),
+            )
         } catch (_: IllegalArgumentException) {
             null
         }
-    }
 
-    private fun buildLoopOrNull(el: XmlNode): LoopType? {
-        val name = el.attr("Name")
-        return try {
-            LoopType.valueOf(name)
+    private fun buildLoopOrNull(el: XmlNode): Loop? =
+        try {
+            Loop.valueOf(el.attr("Name"))
         } catch (_: IllegalArgumentException) {
             null
         }
-    }
 
-    private fun buildBpm(el: XmlNode): BpmEntry = BpmEntry(
-        value = el.attr("Value").toFloat(),
-        start = el.attr("Start").toInt(),
-    )
+    private fun buildBpm(el: XmlNode) =
+        Bpm(
+            value = el.attr("Value").toFloat(),
+            start = el.attr("Start").toInt(),
+        )
 
     private fun buildPlayList(el: XmlNode): PlayList {
         val type = when (el.attr("Type")) {

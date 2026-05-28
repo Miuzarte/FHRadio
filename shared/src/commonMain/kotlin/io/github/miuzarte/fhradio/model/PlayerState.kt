@@ -3,7 +3,7 @@ package io.github.miuzarte.fhradio.model
 import kotlin.time.Duration
 
 data class PlayerState(
-    val status: PlaybackStatus = PlaybackStatus.Idle,
+    val status: Status = Status.Idle,
     val currentPath: String? = null,
     val position: Duration = Duration.ZERO,
     val duration: Duration = Duration.ZERO,
@@ -12,32 +12,32 @@ data class PlayerState(
 ) {
     val isBusy: Boolean
         get() = status.isBusy
-}
 
-enum class PlaybackStatus {
-    Idle,
-    Opening,
-    Buffering,
-    Playing,
-    Paused,
-    Stopped,
-    Ended,
-    Error;
+    enum class Status {
+        Idle,
+        Opening,
+        Buffering,
+        Playing,
+        Paused,
+        Stopped,
+        Ended,
+        Error;
 
-    val isBusy: Boolean
-        get() = when (this) {
-            Idle,
-                -> false
+        val isBusy: Boolean
+            get() = when (this) {
+                Idle,
+                    -> false
 
-            Opening,
-            Buffering,
-            Playing,
-                -> true
+                Opening,
+                Buffering,
+                Playing,
+                    -> true
 
-            Paused,
-            Stopped,
-            Ended,
-            Error,
-                -> false
-        }
+                Paused,
+                Stopped,
+                Ended,
+                Error,
+                    -> false
+            }
+    }
 }
