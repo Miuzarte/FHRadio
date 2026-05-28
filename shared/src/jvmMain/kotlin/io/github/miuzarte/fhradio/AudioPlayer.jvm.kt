@@ -9,6 +9,8 @@ import uk.co.caprica.vlcj.factory.MediaPlayerFactory
 import uk.co.caprica.vlcj.player.base.MediaPlayer
 import uk.co.caprica.vlcj.player.base.MediaPlayerEventAdapter
 import java.io.File
+import kotlin.math.cbrt
+import kotlin.math.roundToInt
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
 
@@ -104,8 +106,16 @@ actual class AudioPlayer actual constructor(val tag: String) {
 
     actual fun pause() = player.controls().setPause(true)
     actual fun resume() = player.controls().setPause(false)
-    actual fun setVolume(volume: Int) = player.audio().setVolume(volume)
-    actual fun getVolume(): Int = player.audio().volume()
+    actual fun setVolume(volume: Int): Boolean {
+        val linear = (volume.coerceIn(0, 800).toDouble()) / 100.0
+        val vlcVol = (cbrt(linear) * 100.0).roundToInt().coerceIn(0, 200)
+        return player.audio().setVolume(vlcVol)
+    }
+
+    actual fun getVolume(): Int {
+        val vlcVol = player.audio().volume().toDouble() / 100.0
+        return ((vlcVol * vlcVol * vlcVol) * 100.0).roundToInt().coerceIn(0, 800)
+    }
     actual fun dispose() {
         player.release()
         factory.release()

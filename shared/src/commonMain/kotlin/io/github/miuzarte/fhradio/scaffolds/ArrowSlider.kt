@@ -12,6 +12,7 @@ import androidx.compose.ui.unit.dp
 import io.github.miuzarte.fhradio.ui.contextClick
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Slider
+import top.yukonga.miuix.kmp.basic.SliderDefaults.SliderHapticEffect
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.overlay.OverlayDialog
@@ -20,7 +21,7 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme.colorScheme
 import top.yukonga.miuix.kmp.theme.MiuixTheme.textStyles
 
 @Composable
-fun SuperSlider(
+fun ArrowSlider(
     title: String,
     summary: String? = null,
     value: Float,
@@ -29,6 +30,10 @@ fun SuperSlider(
     steps: Int,
     onValueChangeFinished: (() -> Unit)? = null,
     enabled: Boolean = true,
+    hapticEffect: SliderHapticEffect = SliderHapticEffect.Edge,
+    showKeyPoints: Boolean = false,
+    keyPoints: List<Float> = emptyList(),
+    magnetThreshold: Float = 0.02f,
     unit: String = "",
     zeroStateText: String? = null,
     showUnitWhenZeroState: Boolean = false,
@@ -79,6 +84,10 @@ fun SuperSlider(
                 steps = steps,
                 onValueChangeFinished = onValueChangeFinished,
                 enabled = enabled,
+                hapticEffect = hapticEffect,
+                showKeyPoints = showKeyPoints,
+                keyPoints = keyPoints,
+                magnetThreshold = magnetThreshold,
             )
         },
     )

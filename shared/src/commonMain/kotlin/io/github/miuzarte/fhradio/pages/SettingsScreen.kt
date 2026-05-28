@@ -17,10 +17,11 @@ import io.github.miuzarte.fhradio.model.PatternNode
 import io.github.miuzarte.fhradio.model.PlayMode
 import io.github.miuzarte.fhradio.model.RadioMode
 import io.github.miuzarte.fhradio.model.SampleType
+import io.github.miuzarte.fhradio.pages.preference.VolumePreference
+import io.github.miuzarte.fhradio.scaffolds.ArrowSlider
 import io.github.miuzarte.fhradio.scaffolds.LazyColumn
 import io.github.miuzarte.fhradio.scaffolds.ReorderableList
 import io.github.miuzarte.fhradio.scaffolds.SectionSmallTitle
-import io.github.miuzarte.fhradio.scaffolds.SuperSlider
 import io.github.miuzarte.fhradio.ui.contextClick
 import io.github.miuzarte.fhradio.util.format
 import io.github.miuzarte.fhradio.util.formatTime
@@ -108,9 +109,6 @@ fun SettingsScreen(
             mutableStateOf(AppSettings.excludedTrackSuffixes)
         }
 
-        var volume by remember(AppSettings.volume) {
-            mutableStateOf(AppSettings.volume.toFloat())
-        }
         val autoResume by remember(AppSettings.autoResume) {
             mutableStateOf(AppSettings.autoResume)
         }
@@ -158,7 +156,7 @@ fun SettingsScreen(
                     AnimatedVisibility(mode == RadioMode.Random) {
                         Column {
                             // Stinger 概率
-                            SuperSlider(
+                            ArrowSlider(
                                 title = "Stinger 概率",
                                 summary = "电台标识音插入概率",
                                 value = stingerProbability.toFloat(),
@@ -183,7 +181,7 @@ fun SettingsScreen(
                                 },
                             )
                             // DJ 概率
-                            SuperSlider(
+                            ArrowSlider(
                                 title = "DJ 概率",
                                 summary = "DJ 语音插入概率",
                                 value = djProbability.toFloat(),
@@ -285,7 +283,7 @@ fun SettingsScreen(
                             AnimatedVisibility(playMode == PlayMode.Shuffle) {
                                 Column {
                                     // 最大连续 Track
-                                    SuperSlider(
+                                    ArrowSlider(
                                         title = "最大连续 Track",
                                         value = maxContinuousTrack,
                                         onValueChange = { maxContinuousTrack = it },
@@ -310,7 +308,7 @@ fun SettingsScreen(
                                         },
                                     )
                                     // 最大连续 Stinger
-                                    SuperSlider(
+                                    ArrowSlider(
                                         title = "最大连续 Stinger",
                                         value = maxContinuousStinger,
                                         onValueChange = { maxContinuousStinger = it },
@@ -335,7 +333,7 @@ fun SettingsScreen(
                                         },
                                     )
                                     // 最大连续 DJ
-                                    SuperSlider(
+                                    ArrowSlider(
                                         title = "最大连续 DJ",
                                         value = maxContinuousDj,
                                         onValueChange = { maxContinuousDj = it },
@@ -416,33 +414,7 @@ fun SettingsScreen(
             item {
                 SectionSmallTitle("应用")
                 Card {
-                    SuperSlider(
-                        title = "音量",
-                        value = volume,
-                        onValueChange = {
-                            volume = it
-                            AppRuntime.setVolume(it.toInt())
-                        },
-                        onValueChangeFinished = {
-                            AppSettings.volume = volume.toInt()
-                        },
-                        valueRange = 0f..100f,
-                        steps = 100,
-                        unit = "%",
-                        displayFormatter = { "${it.toInt()}" },
-                        inputInitialValue = "${AppSettings.volume}",
-                        inputFilter = { it.filter(Char::isDigit) },
-                        inputValueRange = 0f..100f,
-                        onInputConfirm = { input ->
-                            input.toIntOrNull()?.let {
-                                val v = it.coerceIn(0, 100)
-                                volume = v.toFloat()
-                                AppRuntime.setVolume(v)
-
-                                AppSettings.volume = v
-                            }
-                        },
-                    )
+                    VolumePreference() // 音量
                     SwitchPreference(
                         title = "启动应用后自动播放",
                         summary = "应用就绪后直接继续播放最后选中的电台",
@@ -623,7 +595,7 @@ fun SettingsScreen(
                             .padding(horizontal = UiSpacing.Large)
                             .padding(bottom = UiSpacing.Large),
                     )
-                    SuperSlider(
+                    ArrowSlider(
                         title = "步进",
                         value = editStep,
                         onValueChange = { editStep = it },
@@ -638,7 +610,7 @@ fun SettingsScreen(
                             input.toIntOrNull()?.let { editStep = it.toFloat() }
                         },
                     )
-                    SuperSlider(
+                    ArrowSlider(
                         title = "概率",
                         value = editProb.toFloat(),
                         onValueChange = { editProb = it.roundToInt() },

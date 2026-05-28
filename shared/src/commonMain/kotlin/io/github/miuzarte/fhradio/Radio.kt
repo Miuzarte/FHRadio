@@ -97,8 +97,6 @@ object Radio {
 
     fun setStation(
         station: RadioStation?, // null for close
-        // TODO: 播放器模式下手动切台不自动播放, 程序启动按设置仍然自动播放
-        // TODO: 如果是切台, 切之后也继续播放
         play: Boolean = true,
     ) {
         AppSettings.saveLastStation(station)
