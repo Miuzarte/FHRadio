@@ -42,6 +42,10 @@ object SettingsStore {
             // application
             volume = s.getInt("volume", RadioSettings.defaults.volume),
             autoResume = s.getBoolean("auto_resume", RadioSettings.defaults.autoResume),
+            tracksTopAppBarKeepProgressBar = s.getBoolean(
+                "tracks_top_app_bar_keep_progress_bar",
+                RadioSettings.defaults.tracksTopAppBarKeepProgressBar,
+            ),
 
             // internal
             lastStationXmlPath = s.getStringOrNull("last_station_xml"),
@@ -76,6 +80,7 @@ object SettingsStore {
 
             s.putInt("volume", settings.volume)
             s.putBoolean("auto_resume", settings.autoResume)
+            s.putBoolean("tracks_top_app_bar_keep_progress_bar", settings.tracksTopAppBarKeepProgressBar)
 
             val xml = settings.lastStationXmlPath
             if (xml != null) s.putString("last_station_xml", xml)

@@ -114,6 +114,9 @@ fun SettingsScreen(
         val autoResume by remember(AppSettings.autoResume) {
             mutableStateOf(AppSettings.autoResume)
         }
+        val tracksTopAppBarKeepProgressBar by remember(AppSettings.tracksTopAppBarKeepProgressBar) {
+            mutableStateOf(AppSettings.tracksTopAppBarKeepProgressBar)
+        }
 
         var maxContinuousTrack by remember { mutableStateOf(AppSettings.maxContinuousTrack.toFloat()) }
         var maxContinuousStinger by remember { mutableStateOf(AppSettings.maxContinuousStinger.toFloat()) }
@@ -446,6 +449,14 @@ fun SettingsScreen(
                         checked = autoResume,
                         onCheckedChange = {
                             AppSettings.autoResume = it
+                        },
+                    )
+                    SwitchPreference(
+                        title = "曲目页顶栏进度条常驻",
+                        summary = "曲目页下滑不再隐藏顶栏进度条",
+                        checked = tracksTopAppBarKeepProgressBar,
+                        onCheckedChange = {
+                            AppSettings.tracksTopAppBarKeepProgressBar = it
                         },
                     )
                 }

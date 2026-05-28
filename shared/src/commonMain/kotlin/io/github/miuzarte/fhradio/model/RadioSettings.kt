@@ -34,6 +34,7 @@ data class RadioSettings(
     // application
     val volume: Int = 100,
     val autoResume: Boolean = false,
+    val tracksTopAppBarKeepProgressBar: Boolean = false,
 
     // internal
     val lastStationXmlPath: String? = null,

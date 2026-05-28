@@ -69,6 +69,9 @@ fun TracksScreen(
     Scaffold(
         topBar = {
             val station = remember(Radio.selectedStation) { Radio.selectedStation }
+            val tracksTopAppBarKeepProgressBar by remember(AppSettings.tracksTopAppBarKeepProgressBar) {
+                mutableStateOf(AppSettings.tracksTopAppBarKeepProgressBar)
+            }
             TopAppBar(
                 title = "曲目",
                 subtitle = station?.name ?: "未选中电台",
@@ -118,7 +121,7 @@ fun TracksScreen(
                             height = 48.dp,
                             itemSpacing = UiSpacing.Medium,
                         )
-                        AnimatedVisibility(scrollBehavior.state.collapsedFraction < 0.3f) {
+                        AnimatedVisibility(tracksTopAppBarKeepProgressBar || scrollBehavior.state.collapsedFraction < 0.3f) {
                             Column(
                                 modifier = Modifier.clickable {
                                     haptic.contextClick()

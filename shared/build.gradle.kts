@@ -19,6 +19,13 @@ buildkonfig {
             "true"
         )
     }
+    defaultConfigs("release") {
+        buildConfigField(
+            com.codingfeline.buildkonfig.compiler.FieldSpec.Type.BOOLEAN,
+            "DEBUG",
+            "false"
+        )
+    }
 }
 
 kotlin {

@@ -97,6 +97,9 @@ object AppSettings {
     var autoResume by SettingMutableState(radioSettings.autoResume) { _, new ->
         saveRadioSettings(radioSettings.copy(autoResume = new))
     }
+    var tracksTopAppBarKeepProgressBar by SettingMutableState(radioSettings.tracksTopAppBarKeepProgressBar, Radio::reset) { _, new ->
+        saveRadioSettings(radioSettings.copy(tracksTopAppBarKeepProgressBar = new))
+    }
 
     var lastStationXmlPath by SettingMutableState(radioSettings.lastStationXmlPath) { _, new ->
         saveRadioSettings(radioSettings.copy(lastStationXmlPath = new))
