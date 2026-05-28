@@ -137,6 +137,7 @@ fun RadiosScreen(
             }
         }
         Box(modifier = Modifier.fillMaxSize()) {
+            // 测量
             sourceGrids.forEach { (_, gridState, ordered) ->
                 BoxWithConstraints(modifier = Modifier.fillMaxWidth().height(0.dp)) {
                     val maxColumns =
@@ -159,7 +160,7 @@ fun RadiosScreen(
                 bottomInnerPadding = bottomInnerPadding,
                 limitLandscapeWidth = false,
             ) {
-                sourceGrids.forEach { (source, gridState, ordered) ->
+                sourceGrids.forEach { (source, gridState, _) ->
                     item { SectionSmallTitle(source.name) }
                     flowGrid(gridState) { _, station ->
                         val isSelected = Radio.selectedStation == station
@@ -265,7 +266,10 @@ fun RadiosScreen(
         OverlayBottomSheet(
             show = showStationOrderSheet,
             title = "电台编辑",
-            onDismissRequest = { showStationOrderSheet = false },
+            onDismissRequest = {
+                editingSource?.let { AppSettings.updateRadioSource(it) }
+                showStationOrderSheet = false
+            },
             defaultWindowInsetsPadding = false,
         ) {
             val source = editingSource ?: return@OverlayBottomSheet
@@ -278,9 +282,6 @@ fun RadiosScreen(
                     label = "源名称",
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
-                    onFocusLost = {
-                        editingSource?.let { AppSettings.updateRadioSource(it) }
-                    },
                 )
                 Spacer(Modifier.height(12.dp))
                 ReorderableList(
@@ -353,18 +354,19 @@ private fun StationCard(station: RadioStation, selected: Boolean, onClick: () ->
                     fontWeight = FontWeight.Bold,
                     color = if (selected) colorScheme.primary else colorScheme.onSurface,
                 )
-                InfoLine(
-                    SampleType.Track.toString(),
-                    "${playableTracks.size} | ${playableTracks.totalDuration()}",
-                )
-                InfoLine(
-                    SampleType.Stinger.toString(),
-                    "${station.stinger.size} | ${station.stinger.totalDuration()}",
-                )
-                InfoLine(
-                    SampleType.DJ.toString(),
-                    "${station.dj.size} | ${station.dj.totalDuration()}",
-                )
+                Table(columns = 3) {
+                    item { InfoCell(SampleType.Track.toString()) }
+                    item { InfoCell("${playableTracks.size}") }
+                    item { InfoCell(playableTracks.totalDuration()) }
+
+                    item { InfoCell(SampleType.Stinger.toString()) }
+                    item { InfoCell("${station.stinger.size}") }
+                    item { InfoCell(station.stinger.totalDuration()) }
+
+                    item { InfoCell(SampleType.DJ.toString()) }
+                    item { InfoCell("${station.dj.size}") }
+                    item { InfoCell(station.dj.totalDuration()) }
+                }
             }
             ActiveIcon(selected)
         }
@@ -372,8 +374,12 @@ private fun StationCard(station: RadioStation, selected: Boolean, onClick: () ->
 }
 
 @Composable
-private fun InfoLine(label: String, value: String) {
-    Text(text = "$label: $value", fontSize = 12.sp, color = colorScheme.onSurface.copy(alpha = 0.6f))
+private fun InfoCell(text: String) {
+    Text(
+        text = text,
+        fontSize = 12.sp,
+        color = colorScheme.onSurface.copy(alpha = 0.6f),
+    )
 }
 
 inline fun <T> Iterable<T>.sumOfDuration(selector: (T) -> Duration): Duration {
@@ -389,7 +395,12 @@ private fun List<Sample>.totalDuration(withMs: Boolean = false) =
 
 @Composable
 private fun BoxScope.ActiveIcon(visible: Boolean) {
-    Box(modifier = Modifier.matchParentSize().offset(18.dp, 26.dp), contentAlignment = Alignment.BottomEnd) {
+    Box(
+        modifier = Modifier
+            .matchParentSize()
+            .offset(18.dp, 26.dp),
+        contentAlignment = Alignment.BottomEnd,
+    ) {
         AnimatedVisibility(
             visible = visible,
             enter = fadeIn() + slideIn { IntOffset(it.width, it.height) },

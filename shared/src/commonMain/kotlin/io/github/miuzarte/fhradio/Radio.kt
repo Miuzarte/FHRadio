@@ -215,7 +215,12 @@ object Radio {
         }
 
         val sample = playItem.sample
-        val path = selectedStation?.resolvePath(sample) ?: return false
+        val path = runCatching { selectedStation?.resolvePath(sample) }
+            .onFailure { e ->
+                AppRuntime.snackbar("failed to resolve path of ${sample.soundName}: ${e.message ?: e.toString()}")
+            }
+            .getOrNull()
+            ?: return false
         val beginAt = playItem.beginAt
 
         return if (useTryPlay) {
@@ -227,14 +232,14 @@ object Radio {
             if (it) {
                 val now = Clock.System.now()
                 when (sample) {
-                    is TrackSample ->
-                        trackSlot = PlaySlot(playing = sample, beginInstant = now, beginPos = beginAt)
+                    is TrackSample -> trackSlot =
+                        PlaySlot(playing = sample, beginInstant = now, beginPos = beginAt)
 
-                    is StingerSample ->
-                        stingerSlot = PlaySlot(playing = sample, beginInstant = now, beginPos = beginAt)
+                    is StingerSample -> stingerSlot =
+                        PlaySlot(playing = sample, beginInstant = now, beginPos = beginAt)
 
-                    is DjSample ->
-                        djSlot = PlaySlot(playing = sample, beginInstant = now, beginPos = beginAt)
+                    is DjSample -> djSlot =
+                        PlaySlot(playing = sample, beginInstant = now, beginPos = beginAt)
                 }
             }
         }
@@ -425,5 +430,5 @@ internal fun RadioStation.resolvePath(sample: Sample): String? {
         if (fileExists(path)) return path
     }
 
-    throw FileNotFoundException("$base.*")
+    throw FileNotFoundException("$base.$SUPPORTED_FORMATS")
 }

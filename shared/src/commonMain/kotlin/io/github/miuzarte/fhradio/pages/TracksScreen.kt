@@ -32,6 +32,7 @@ import io.github.miuzarte.fhradio.constants.UiSpacing
 import io.github.miuzarte.fhradio.model.*
 import io.github.miuzarte.fhradio.scaffolds.FlowGridState
 import io.github.miuzarte.fhradio.scaffolds.LazyColumn
+import io.github.miuzarte.fhradio.scaffolds.Table
 import io.github.miuzarte.fhradio.scaffolds.flowGrid
 import io.github.miuzarte.fhradio.ui.contextClick
 import io.github.miuzarte.fhradio.util.fmt
@@ -48,15 +49,7 @@ fun TracksScreen(
 ) {
     val haptic = LocalHapticFeedback.current
 
-    val tabs = remember { SampleType.entries }
-    var selectedTabIndex by rememberSaveable { mutableIntStateOf(0) }
     val scope = rememberCoroutineScope()
-    val trackListState = rememberLazyListState()
-    val stingerListState = rememberLazyListState()
-    val djListState = rememberLazyListState()
-    val trackGridState = remember { FlowGridState<TrackSample>() }
-    val stingerGridState = remember { FlowGridState<StingerSample>() }
-    val djGridState = remember { FlowGridState<DjSample>() }
 
     var frameCount by remember { mutableIntStateOf(0) }
     LaunchedEffect(Unit) {
@@ -66,12 +59,45 @@ fun TracksScreen(
         }
     }
 
+    val station by remember(Radio.selectedStation) { derivedStateOf { Radio.selectedStation } }
+    val stationTrack by remember(station?.track, AppSettings.excludedTrackSuffixes) {
+        derivedStateOf { station?.playableTracks(AppSettings.excludedTrackSuffixes) ?: emptyList() }
+    }
+    val stationStinger by remember(station?.stinger) { derivedStateOf { station?.stinger ?: emptyList() } }
+    val stationDj by remember(station?.dj) { derivedStateOf { station?.dj ?: emptyList() } }
+
+    val availableTabs by remember {
+        derivedStateOf {
+            SampleType.entries.filter {
+                when (it) {
+                    SampleType.Track -> stationTrack.isNotEmpty()
+                    SampleType.Stinger -> stationStinger.isNotEmpty()
+                    SampleType.DJ -> stationDj.isNotEmpty()
+                }
+            }
+        }
+    }
+
+    var selectedTabIndex by rememberSaveable { mutableIntStateOf(0) }
+    LaunchedEffect(availableTabs.size) {
+        if (selectedTabIndex >= availableTabs.size)
+            selectedTabIndex = 0
+    }
+
+    val trackListState = rememberLazyListState()
+    val stingerListState = rememberLazyListState()
+    val djListState = rememberLazyListState()
+
+    val trackGridState = remember { FlowGridState<TrackSample>() }
+    val stingerGridState = remember { FlowGridState<StingerSample>() }
+    val djGridState = remember { FlowGridState<DjSample>() }
+
     Scaffold(
         topBar = {
-            val station = remember(Radio.selectedStation) { Radio.selectedStation }
             val tracksTopAppBarKeepProgressBar by remember(AppSettings.tracksTopAppBarKeepProgressBar) {
                 mutableStateOf(AppSettings.tracksTopAppBarKeepProgressBar)
             }
+
             TopAppBar(
                 title = "曲目",
                 subtitle = station?.name ?: "未选中电台",
@@ -79,56 +105,51 @@ fun TracksScreen(
                 scrollBehavior = scrollBehavior,
                 bottomContent = {
                     Column {
-                        TabRow(
-                            tabs = tabs.map { it.toString() },
-                            selectedTabIndex = selectedTabIndex,
-                            onTabSelected = { index ->
-                                haptic.contextClick()
-                                if (selectedTabIndex == index) {
-                                    station ?: return@TabRow
-                                    // 双击随机播放
-                                    val playSection = when (index) {
-                                        0 -> {
-                                            // Track
-                                            station.randomTrack()
+                        availableTabs.takeIf { it.isNotEmpty() }?.run {
+                            TabRow(
+                                tabs = availableTabs.map { it.toString() },
+                                selectedTabIndex = selectedTabIndex,
+                                onTabSelected = { index ->
+                                    haptic.contextClick()
+                                    val type = availableTabs[index]
+                                    if (selectedTabIndex == index) {
+                                        station ?: return@TabRow
+
+                                        val playSection = when (type) {
+                                            SampleType.Track -> station!!.randomTrack()
                                                 ?.let { PlaySection(track = PlayItem.Track(sample = it)) }
-                                        }
 
-                                        1 -> {
-                                            // Stinger
-                                            station.randomStinger()
+                                            SampleType.Stinger -> station!!.randomStinger()
                                                 ?.let { PlaySection(stinger = PlayItem.Stinger(sample = it)) }
-                                        }
 
-                                        2 -> {
-                                            // DJ
-                                            station.randomDj()
+                                            SampleType.DJ -> station!!.randomDj()
                                                 ?.let { PlaySection(dj = PlayItem.Dj(sample = it)) }
-                                        }
+                                        }?.copy(solo = true)
+                                            ?: return@TabRow
 
-                                        else -> null
-                                    } ?: return@TabRow
+                                        Radio.beginSection(playSection)
+                                    } else {
+                                        selectedTabIndex = index
+                                    }
+                                },
+                                modifier = Modifier
+                                    .padding(bottom = UiSpacing.Medium)
+                                    .padding(horizontal = UiSpacing.Medium),
+                                minWidth = 80.dp,
+                                height = 48.dp,
+                                itemSpacing = UiSpacing.Medium,
+                            )
+                        }
 
-                                    Radio.beginSection(playSection.copy(solo = true))
-                                } else {
-                                    selectedTabIndex = index
-                                }
-                            },
-                            modifier = Modifier
-                                .padding(bottom = UiSpacing.Medium)
-                                .padding(horizontal = UiSpacing.Medium),
-                            minWidth = 80.dp,
-                            height = 48.dp,
-                            itemSpacing = UiSpacing.Medium,
-                        )
+                        // Track 名和进度条
                         AnimatedVisibility(tracksTopAppBarKeepProgressBar || scrollBehavior.state.collapsedFraction < 0.3f) {
                             Column(
                                 modifier = Modifier.clickable {
                                     haptic.contextClick()
                                     Radio.trackSlot.playing?.let { playing ->
-                                        val tracks =
-                                            Radio.selectedStation?.playableTracks(AppSettings.excludedTrackSuffixes)
-                                                ?: emptyList()
+                                        val tracks = station
+                                            ?.playableTracks(AppSettings.excludedTrackSuffixes)
+                                            ?: emptyList()
                                         val idx = tracks.indexOf(playing)
                                         if (idx >= 0) {
                                             selectedTabIndex = 0
@@ -225,17 +246,9 @@ fun TracksScreen(
         floatingToolbarPosition = ToolbarPosition.BottomCenter,
     ) { contentPadding ->
         val bottomInnerPadding = bottomInnerPadding + 64.dp
-        val station by remember { derivedStateOf { Radio.selectedStation } }
-        val tracks by remember {
-            derivedStateOf {
-                station?.playableTracks(AppSettings.excludedTrackSuffixes) ?: emptyList()
-            }
-        }
-        val stingers by remember { derivedStateOf { station?.stinger ?: emptyList() } }
-        val djSamples by remember { derivedStateOf { station?.dj ?: emptyList() } }
-        when (tabs[selectedTabIndex]) {
+        when (availableTabs.getOrNull(selectedTabIndex) ?: SampleType.Track) {
             SampleType.Track -> SampleCardList(
-                samples = tracks,
+                samples = stationTrack,
                 listState = trackListState,
                 gridState = trackGridState,
                 contentPadding = contentPadding,
@@ -251,16 +264,29 @@ fun TracksScreen(
                         else colorScheme.onSurface
                     Text(sample.displayName, fontWeight = FontWeight.SemiBold, color = color)
                     Text(sample.artist, fontWeight = FontWeight.Normal, color = color)
-                    InfoLine("SoundName", sample.soundName)
-                    InfoLine("BPM", sample.bpm.fmt())
-                    sample.stingerStart?.let { InfoLine("StingerStart", it.format()) }
-                    InfoLine("Duration", sample.duration.format())
-                    // InfoLine("SampleRate", sample.sampleRate.toString())
+                    Table(columns = 2) {
+                        item { InfoCell("SoundName") }
+                        item { InfoCell(sample.soundName) }
+
+                        item { InfoCell("BPM") }
+                        item { InfoCell(sample.bpm.fmt()) }
+
+                        sample.stingerStart?.let {
+                            item { InfoCell("StingerStart") }
+                            item { InfoCell(it.format()) }
+                        }
+
+                        item { InfoCell("Duration") }
+                        item { InfoCell(sample.duration.format()) }
+
+                        // item { InfoCell("SampleRate") }
+                        // item { InfoCell(sample.sampleRate.toString()) }
+                    }
                 },
             )
 
             SampleType.Stinger -> SampleCardList(
-                samples = stingers,
+                samples = stationStinger,
                 listState = stingerListState,
                 gridState = stingerGridState,
                 contentPadding = contentPadding,
@@ -277,14 +303,23 @@ fun TracksScreen(
                             if (isPlaying) colorScheme.primary
                             else colorScheme.onSurface,
                     )
-                    sample.startNextTrack?.let { InfoLine("StartNextTrack", it.format()) }
-                    InfoLine("Duration", sample.duration.format())
-                    // InfoLine("SampleRate", sample.sampleRate.toString())
+                    Table(columns = 2) {
+                        sample.startNextTrack?.let {
+                            item { InfoCell("StartNextTrack") }
+                            item { InfoCell(it.format()) }
+                        }
+
+                        item { InfoCell("Duration") }
+                        item { InfoCell(sample.duration.format()) }
+
+                        // item { InfoCell("SampleRate") }
+                        // item { InfoCell(sample.sampleRate.toString()) }
+                    }
                 },
             )
 
             SampleType.DJ -> SampleCardList(
-                samples = djSamples,
+                samples = stationDj,
                 listState = djListState,
                 gridState = djGridState,
                 contentPadding = contentPadding,
@@ -301,9 +336,16 @@ fun TracksScreen(
                             if (isPlaying) colorScheme.primary
                             else colorScheme.onSurface,
                     )
-                    InfoLine("GameEvent", sample.gameEvent)
-                    InfoLine("Duration", sample.duration.format())
-                    // InfoLine("SampleRate", sample.sampleRate.toString())
+                    Table(columns = 2) {
+                        item { InfoCell("GameEvent") }
+                        item { InfoCell(sample.gameEvent) }
+
+                        item { InfoCell("Duration") }
+                        item { InfoCell(sample.duration.format()) }
+
+                        // item { InfoCell("SampleRate") }
+                        // item { InfoCell(sample.sampleRate.toString()) }
+                    }
                 },
             )
         }
@@ -401,6 +443,15 @@ private fun <T: Sample> SampleCardList(
             trackPadding = contentPadding,
         )
     }
+}
+
+@Composable
+private fun InfoCell(text: String) {
+    Text(
+        text = text,
+        fontSize = 12.sp,
+        color = colorScheme.onSurface.copy(alpha = 0.6f),
+    )
 }
 
 @Composable
