@@ -1,5 +1,6 @@
 package io.github.miuzarte.fhradio
 
+import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.provider.OpenableColumns
@@ -14,6 +15,8 @@ import java.io.File
 object AndroidBridge {
     lateinit var activity: ComponentActivity
         private set
+    lateinit var appContext: Context
+        private set
     lateinit var xmlLauncher: ActivityResultLauncher<Array<String>>
         private set
     lateinit var folderLauncher: ActivityResultLauncher<Uri?>
@@ -25,12 +28,13 @@ object AndroidBridge {
 
     fun init(activity: ComponentActivity) {
         this.activity = activity
+        this.appContext = activity.applicationContext
         xmlLauncher = activity.registerForActivityResult(
-            ActivityResultContracts.OpenDocument()
+            ActivityResultContracts.OpenDocument(),
         ) { uri: Uri? -> onXmlResult(uri) }
 
         folderLauncher = activity.registerForActivityResult(
-            ActivityResultContracts.OpenDocumentTree()
+            ActivityResultContracts.OpenDocumentTree(),
         ) { uri: Uri? -> onFolderResult(uri) }
     }
 

@@ -495,12 +495,11 @@ fun SettingsScreen(
                             @Suppress("UNUSED_EXPRESSION")
                             frameCount
                             Scheduler.jobs.forEach { job ->
-                                val delay = job.delay
-                                val remaining = job.remaining()
-                                // TODO: platforms timezone
-                                val scheduledAt = job.scheduledAt + 8.hours // UTC+8
+                                val triggerPosition = job.triggerPosition
+                                val remaining = job.remaining
+                                val scheduledAt = job.scheduledAt
                                 Text(
-                                    text = "${job.tag} @ ${delay.format()} (-${remaining.format()}) (${scheduledAt.formatTime()})",
+                                    text = "${job.tag} @ ${triggerPosition.format()} (${scheduledAt.formatTime(withMs = false)}) (-${remaining.format()})",
                                     color =
                                         if (remaining <= Duration.ZERO) colorScheme.primary
                                         else colorScheme.onSurface,

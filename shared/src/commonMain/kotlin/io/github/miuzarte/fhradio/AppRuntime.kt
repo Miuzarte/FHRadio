@@ -14,8 +14,8 @@ import kotlin.time.Duration.Companion.seconds
 object AppRuntime {
     var debug by mutableStateOf(BuildKonfig.DEBUG)
 
-    val mainPlayer = AudioPlayer()
-    val secondaryPlayer = AudioPlayer()
+    val mainPlayer = AudioPlayer("mainPlayer")
+    val secondaryPlayer = AudioPlayer("secondaryPlayer")
 
     // --- Snackbar ---
 
@@ -70,6 +70,7 @@ object AppRuntime {
 
     private val volumeSyncJob =
         if (needVolumeSync) scope.launch(Dispatchers.Main) {
+            // 每秒从播放器同步音量, 仅 vlc 使用
             while (isActive) {
                 delay(1.seconds)
                 syncVolumeFromPlayers()

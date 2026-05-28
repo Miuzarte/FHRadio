@@ -3,7 +3,9 @@ package io.github.miuzarte.fhradio
 import io.github.miuzarte.fhradio.model.PlayerState
 import kotlin.time.Duration
 
-expect class AudioPlayer() {
+expect class AudioPlayer(
+    tag: String, // for debugging
+) {
     var state: PlayerState
         private set
 

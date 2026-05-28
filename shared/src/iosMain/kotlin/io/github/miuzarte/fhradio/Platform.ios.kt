@@ -7,5 +7,8 @@ actual fun fileExists(path: String): Boolean = false
 
 actual val needVolumeSync: Boolean = false
 
+actual fun startForegroundService() {}
+actual fun stopForegroundService() {}
+
 actual fun joinPath(base: String, relative: String): String =
     (base.toPath() / relative).toString()

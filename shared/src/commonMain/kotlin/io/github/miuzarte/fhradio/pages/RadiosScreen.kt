@@ -384,8 +384,8 @@ inline fun <T> Iterable<T>.sumOfDuration(selector: (T) -> Duration): Duration {
     return sum
 }
 
-private fun List<Sample>.totalDuration() =
-    sumOfDuration { it.duration }.format()
+private fun List<Sample>.totalDuration(withMs: Boolean = false) =
+    sumOfDuration { it.duration }.format(withMs = withMs)
 
 @Composable
 private fun BoxScope.ActiveIcon(visible: Boolean) {

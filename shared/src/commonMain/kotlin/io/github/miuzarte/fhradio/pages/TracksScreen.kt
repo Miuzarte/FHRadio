@@ -22,6 +22,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
@@ -105,7 +106,7 @@ fun TracksScreen(
                                         else -> null
                                     } ?: return@TabRow
 
-                                    Radio.beginSection(playSection)
+                                    Radio.beginSection(playSection.copy(solo = true))
                                 } else {
                                     selectedTabIndex = index
                                 }
@@ -137,7 +138,7 @@ fun TracksScreen(
                                 },
                             ) {
                                 Radio.trackPlaying?.let { track ->
-                                    val currentPos = Radio.trackCurrentPos
+                                    val currentPos = Radio.trackDisplayPos
                                     val isPlaying = track.durationMs > 0L
                                             && currentPos?.let { it < track.duration } ?: true
                                     if (isPlaying) {
@@ -152,6 +153,7 @@ fun TracksScreen(
                                                 .fillMaxWidth()
                                                 .padding(bottom = 6.dp),
                                             textAlign = TextAlign.Center,
+                                            overflow = TextOverflow.Ellipsis,
                                             maxLines = 1,
                                         )
                                         Box(
@@ -237,7 +239,7 @@ fun TracksScreen(
                 scrollBehavior = scrollBehavior,
                 bottomInnerPadding = bottomInnerPadding,
                 getPlaying = { Radio.trackPlaying },
-                getCurrentPos = { Radio.trackCurrentPos },
+                getCurrentPos = { Radio.trackDisplayPos },
                 playSectionFactory = { PlaySection(track = PlayItem.Track(sample = it)) },
                 errorLabel = SampleType.Track.toString(),
                 displayContent = { sample, isPlaying ->
@@ -248,6 +250,7 @@ fun TracksScreen(
                     Text(sample.artist, fontWeight = FontWeight.Normal, color = color)
                     InfoLine("SoundName", sample.soundName)
                     InfoLine("BPM", sample.bpm.fmt())
+                    sample.stingerStart?.let { InfoLine("StingerStart", it.format()) }
                     InfoLine("Duration", sample.duration.format())
                     // InfoLine("SampleRate", sample.sampleRate.toString())
                 },
@@ -261,7 +264,7 @@ fun TracksScreen(
                 scrollBehavior = scrollBehavior,
                 bottomInnerPadding = bottomInnerPadding,
                 getPlaying = { Radio.stingerPlaying },
-                getCurrentPos = { Radio.stingerCurrentPos },
+                getCurrentPos = { Radio.stingerDisplayPos },
                 playSectionFactory = { PlaySection(stinger = PlayItem.Stinger(sample = it)) },
                 errorLabel = SampleType.Stinger.toString(),
                 displayContent = { sample, isPlaying ->
@@ -285,7 +288,7 @@ fun TracksScreen(
                 scrollBehavior = scrollBehavior,
                 bottomInnerPadding = bottomInnerPadding,
                 getPlaying = { Radio.djPlaying },
-                getCurrentPos = { Radio.djCurrentPos },
+                getCurrentPos = { Radio.djDisplayPos },
                 playSectionFactory = { PlaySection(dj = PlayItem.Dj(sample = it)) },
                 errorLabel = SampleType.DJ.toString(),
                 displayContent = { sample, isPlaying ->
@@ -357,7 +360,7 @@ private fun <T: Sample> SampleCardList(
                         .clickable {
                             haptic.contextClick()
                             runCatching {
-                                Radio.beginSection(playSectionFactory(sample))
+                                Radio.beginSection(playSectionFactory(sample).copy(solo = true))
                             }.onFailure { e ->
                                 AppRuntime.snackbar("failed to beginSection of $errorLabel: ${e.message ?: e.toString()}")
                             }

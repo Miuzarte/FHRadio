@@ -5,6 +5,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import io.github.miuzarte.fhradio.model.PlaybackStatus
 import io.github.miuzarte.fhradio.model.PlayerState
+import kotlinx.coroutines.*
 import okio.Path.Companion.toPath
 import uk.co.caprica.vlcj.factory.MediaPlayerFactory
 import uk.co.caprica.vlcj.player.base.MediaPlayer
@@ -13,7 +14,7 @@ import java.io.File
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
 
-actual class AudioPlayer {
+actual class AudioPlayer actual constructor(val tag: String) {
 
     private val factory: MediaPlayerFactory
     private val player: MediaPlayer
@@ -85,7 +86,7 @@ actual class AudioPlayer {
     actual fun play(path: String, beginAt: Duration) {
         val beginMs = beginAt.inWholeMilliseconds
         player.controls().stop()
-        state = state.copy(currentPath = path, position = beginAt)
+        state = state.copy(currentPath = path, position = beginAt, status = PlaybackStatus.Opening)
         player.media().play(path)
         if (beginMs > 0) {
             player.controls().setTime(beginMs)

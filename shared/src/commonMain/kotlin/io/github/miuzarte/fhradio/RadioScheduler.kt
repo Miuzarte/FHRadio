@@ -4,102 +4,95 @@ import androidx.compose.runtime.mutableStateListOf
 import kotlinx.coroutines.*
 import kotlin.time.Clock
 import kotlin.time.Duration
-import kotlin.time.Duration.Companion.seconds
+import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Instant
 
-class ScheduledJob(
-    val job: Job,
-    val tag: String,
-    val createdAt: Instant = Clock.System.now(),
-    val delay: Duration,
-) {
-
-    // 触发时刻
-    val scheduledAt: Instant get() = createdAt + delay
-
-    // 剩余时间
-    fun remaining(now: Instant = Clock.System.now()): Duration =
-        (scheduledAt - now).coerceAtLeast(Duration.ZERO)
-
-    val hasFired: Boolean get() = remaining() <= Duration.ZERO
-
-    fun cancel() = job.cancel()
-}
-
 object Scheduler {
+
+    class Job(
+        val tag: String,
+        val triggerPosition: Duration,
+        val player: AudioPlayer,
+        val block: () -> Unit,
+    ) {
+        val createdAt: Instant = Clock.System.now()
+        val scheduledAt: Instant get() = createdAt + triggerPosition
+        val remaining: Duration get() = (triggerPosition - player.state.position).coerceAtLeast(Duration.ZERO)
+        val hasFired: Boolean get() = remaining <= Duration.ZERO
+    }
+
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
-    internal val jobs = mutableStateListOf<ScheduledJob>()
+    internal val jobs = mutableStateListOf<Job>()
+
+    private var watcherJob: kotlinx.coroutines.Job? = null
 
     fun scheduleMarker(
         tag: String,
-        delay: Duration,
-        block: suspend CoroutineScope.() -> Unit,
+        triggerPosition: Duration,
+        player: AudioPlayer,
+        block: () -> Unit,
     ) {
         cancel(tag)
-
-        scope.launch {
-            val tag = tag
-            val delay = delay
-            val block = block
-
-            if (delay.isPositive())
-                delay(delay)
-            else if (delay.isNegative())
-                debugSnack("$tag has a negative delay")
-            else
-                debugSnack("$tag has a zero delay")
-
-            block()
-
-            scope.launch {
-                // 五秒后自动删除
-                delay(5.seconds)
-                cancel(tag, onlyWhenFired = true)
-            }
-        }.also {
-            jobs.add(
-                ScheduledJob(
-                    job = it,
-                    tag = tag,
-                    delay = delay,
-                ),
-            )
-        }
+        jobs.add(Job(tag, triggerPosition, player, block))
+        ensureWatching()
     }
-
-    fun scheduleMarker(
-        tag: String,
-        scheduledAt: Instant,
-        block: suspend CoroutineScope.() -> Unit,
-    ) = scheduleMarker(
-        tag = tag,
-        delay = scheduledAt - Clock.System.now(),
-        block = block,
-    )
 
     fun cancel(tag: String, onlyWhenFired: Boolean = false) {
-        jobs.removeAll {
-            if (it.tag == tag && (!onlyWhenFired || it.hasFired)) {
-                it.cancel()
-                true
-            } else false
-        }
+        if (onlyWhenFired) jobs.removeAll { it.tag == tag && it.hasFired }
+        else jobs.removeAll { it.tag == tag }
     }
 
-    fun cancel(vararg tag: String, onlyWhenFired: Boolean = false) {
-        val tag = tag.toSet()
-        jobs.removeAll {
-            if (it.tag in tag && (!onlyWhenFired || it.hasFired)) {
-                it.cancel()
-                true
-            } else false
-        }
+    fun cancel(vararg tags: String, onlyWhenFired: Boolean = false) {
+        val tagSet = tags.toSet()
+        if (onlyWhenFired) jobs.removeAll { it.tag in tagSet && it.hasFired }
+        else jobs.removeAll { it.tag in tagSet }
     }
 
     fun cancel() {
-        jobs.forEach { it.cancel() }
         jobs.clear()
+        watcherJob?.cancel()
+        watcherJob = null
     }
 
     fun dispose() = cancel()
+
+    // 实现 marker 触发
+    private fun ensureWatching() {
+        if (watcherJob?.isActive == true) return
+        watcherJob = scope.launch {
+            while (isActive) {
+                // 取快照避免回调中新增 marker 导致并发修改
+                val snapshot = jobs.toList()
+                val toFire = mutableListOf<Job>()
+
+                val activePlayers = snapshot.map { it.player }.distinct()
+
+                for (player in activePlayers) {
+                    val state = player.state
+                    toFire.addAll(
+                        if (state.status.isBusy) snapshot.filter {
+                            it.player === player && state.position >= it.triggerPosition
+                        }
+                        else snapshot.filter {
+                            it.player === player
+                        },
+                    )
+                }
+
+                // 按触发位置升序排列, 保证同一 tick 内的执行顺序
+                toFire.sortBy { it.triggerPosition }
+
+                for (job in toFire) {
+                    // 二次检查: 可能已被之前的 marker 回调调用 Scheduler.cancel() 清掉
+                    if (job in jobs) {
+                        jobs.remove(job)
+                        jobs.removeAll { it.tag == job.tag }
+                        job.block()
+                    }
+                }
+
+                delay(50.milliseconds)
+            }
+        }
+    }
 }

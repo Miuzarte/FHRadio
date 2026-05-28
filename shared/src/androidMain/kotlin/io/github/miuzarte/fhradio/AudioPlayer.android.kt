@@ -10,12 +10,15 @@ import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
 import io.github.miuzarte.fhradio.model.PlaybackStatus
 import io.github.miuzarte.fhradio.model.PlayerState
+import kotlinx.coroutines.*
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
 
-actual class AudioPlayer {
+actual class AudioPlayer actual constructor(val tag: String) {
 
-    private val player = ExoPlayer.Builder(AndroidBridge.activity).build()
+    private val player = ExoPlayer.Builder(AndroidBridge.appContext).build()
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
+    private var positionJob: Job? = null
 
     init {
         player.addListener(
@@ -65,6 +68,7 @@ actual class AudioPlayer {
         private set
 
     actual fun play(path: String, beginAt: Duration) {
+        positionJob?.cancel()
         player.stop()
         val mediaItem =
             if (path.startsWith("content://")) MediaItem.fromUri(Uri.parse(path))
@@ -80,6 +84,7 @@ actual class AudioPlayer {
             position = beginAt,
             status = PlaybackStatus.Opening,
         )
+        startPositionPolling()
     }
 
     actual fun tryPlay(path: String, beginAt: Duration): Boolean {
@@ -89,6 +94,8 @@ actual class AudioPlayer {
     }
 
     actual fun stop() {
+        positionJob?.cancel()
+        positionJob = null
         player.stop()
         this.state = state.copy(
             status = PlaybackStatus.Stopped,
@@ -97,8 +104,16 @@ actual class AudioPlayer {
         )
     }
 
-    actual fun pause() = player.pause()
-    actual fun resume() = player.play()
+    actual fun pause() {
+        positionJob?.cancel()
+        positionJob = null
+        player.pause()
+    }
+
+    actual fun resume() {
+        player.play()
+        startPositionPolling()
+    }
 
     actual fun setVolume(volume: Int): Boolean {
         player.volume = volume.toFloat() / 100f
@@ -108,7 +123,23 @@ actual class AudioPlayer {
     actual fun getVolume(): Int = (player.volume * 100).toInt()
 
     actual fun dispose() {
+        positionJob?.cancel()
+        scope.cancel()
         player.release()
+    }
+
+    private fun startPositionPolling() {
+        positionJob?.cancel()
+        positionJob = scope.launch {
+            while (isActive) {
+                val pos = player.currentPosition
+                if (pos >= 0) {
+                    this@AudioPlayer.state =
+                        this@AudioPlayer.state.copy(position = pos.milliseconds)
+                }
+                delay(50.milliseconds)
+            }
+        }
     }
 
     private fun setState(status: PlaybackStatus) {

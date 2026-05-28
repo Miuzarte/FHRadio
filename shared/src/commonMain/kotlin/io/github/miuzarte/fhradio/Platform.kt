@@ -4,3 +4,5 @@ expect fun readFileTextOrNull(path: String): String?
 expect fun fileExists(path: String): Boolean
 expect fun joinPath(base: String, relative: String): String
 expect val needVolumeSync: Boolean
+expect fun startForegroundService()
+expect fun stopForegroundService()

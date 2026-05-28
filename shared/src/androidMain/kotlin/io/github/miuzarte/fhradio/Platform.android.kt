@@ -27,6 +27,16 @@ actual fun fileExists(path: String): Boolean {
 
 actual val needVolumeSync: Boolean = false
 
+actual fun startForegroundService() {
+    val context = AndroidBridge.appContext
+    RadioForegroundService.start(context)
+}
+
+actual fun stopForegroundService() {
+    val context = AndroidBridge.appContext
+    RadioForegroundService.stop(context)
+}
+
 actual fun joinPath(base: String, relative: String): String {
     if (!base.startsWith("content://")) {
         return (base.toPath() / relative).toString()
