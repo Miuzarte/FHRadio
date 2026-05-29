@@ -14,7 +14,9 @@ expect class AudioPlayer(
     fun stop()
     fun pause()
     fun resume()
+    fun getComputedPosition(): Duration
     fun setVolume(volume: Int): Boolean
     fun getVolume(): Int
+    fun setPreamp(db: Float)
     fun dispose()
 }

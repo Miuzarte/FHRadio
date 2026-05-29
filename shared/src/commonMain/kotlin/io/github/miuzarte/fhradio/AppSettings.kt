@@ -19,9 +19,6 @@ object AppSettings {
     var radioMode by SettingMutableState(radioSettings.radioMode, Radio::reset) { _, new ->
         saveRadioSettings(radioSettings.copy(radioMode = new))
     }
-    var playMode by SettingMutableState(radioSettings.playMode, Radio::reset) { _, new ->
-        saveRadioSettings(radioSettings.copy(playMode = new))
-    }
 
     var stingerProbability by SettingMutableState(radioSettings.stingerProbability, Radio::reset) { _, new ->
         saveRadioSettings(radioSettings.copy(stingerProbability = new))
@@ -47,6 +44,25 @@ object AppSettings {
             .distinct()
             .sorted()
             .toList()
+
+    var seedString by SettingMutableState(radioSettings.seedString, Radio::reset) { _, new ->
+        saveRadioSettings(radioSettings.copy(seedString = new))
+    }
+
+    val seed: Long
+        get() {
+            if (seedString.isEmpty()) return 0L
+            return seedString.toLongOrNull() ?: seedString.hashCode().toLong()
+        }
+
+    fun parseSeed(input: String): Long {
+        if (input.isEmpty()) return 0L
+        return input.toLongOrNull() ?: input.hashCode().toLong()
+    }
+
+    var playMode by SettingMutableState(radioSettings.playMode, Radio::reset) { _, new ->
+        saveRadioSettings(radioSettings.copy(playMode = new))
+    }
 
     var crossListsJson by SettingMutableState(radioSettings.crossListsJson, Radio::reset) { _, new ->
         saveRadioSettings(radioSettings.copy(crossListsJson = new))
@@ -94,10 +110,16 @@ object AppSettings {
     var volume by SettingMutableState(radioSettings.volume) { _, new ->
         saveRadioSettings(radioSettings.copy(volume = new))
     }
+    var audioDucking by SettingMutableState(radioSettings.audioDucking, Radio::reset) { _, new ->
+        saveRadioSettings(radioSettings.copy(audioDucking = new))
+    }
     var autoResume by SettingMutableState(radioSettings.autoResume) { _, new ->
         saveRadioSettings(radioSettings.copy(autoResume = new))
     }
-    var tracksTopAppBarKeepProgressBar by SettingMutableState(radioSettings.tracksTopAppBarKeepProgressBar, Radio::reset) { _, new ->
+    var tracksTopAppBarKeepProgressBar by SettingMutableState(
+        radioSettings.tracksTopAppBarKeepProgressBar,
+        Radio::reset,
+    ) { _, new ->
         saveRadioSettings(radioSettings.copy(tracksTopAppBarKeepProgressBar = new))
     }
 
@@ -114,6 +136,10 @@ object AppSettings {
 
     var playbackState by SettingMutableState(SettingsStore.playbackState) { _, new ->
         savePlaybackState(new)
+    }
+
+    var totalPlaybackMinutes by SettingMutableState(SettingsStore.totalPlaybackMinutes) { _, new ->
+        SettingsStore.savePlaybackMinutes(new)
     }
 
     // 超级重, 不序列化, 启动时读取 RadioInfo.xml 解析构建
@@ -152,7 +178,6 @@ object AppSettings {
             for (source in radioSourcesXml) {
                 val xml = readFileTextOrNull(source.xmlFilePath) ?: continue
                 val result = RadioXmlParser.parse(xml)
-                AudioScanner().verifyOnly(result, source.audioFolderPath)
                 newStations[source.xmlFilePath] = result.stations
             }
             withContext(Dispatchers.Main) {

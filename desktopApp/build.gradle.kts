@@ -22,7 +22,10 @@ compose.desktop {
         nativeDistributions {
             targetFormats(TargetFormat.Dmg, TargetFormat.Deb)
             packageName = "io.github.miuzarte.fhradio"
-            packageVersion = "1.0.0"
+            packageVersion = "0.1.0"
+
+            windows.iconFile = project.file("resources/windows/icon.ico")
+            linux.iconFile = project.file("resources/linux/icon.png")
         }
 
         buildTypes.release.proguard {

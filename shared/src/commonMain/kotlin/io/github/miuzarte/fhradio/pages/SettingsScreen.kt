@@ -18,13 +18,11 @@ import io.github.miuzarte.fhradio.model.PlayMode
 import io.github.miuzarte.fhradio.model.RadioMode
 import io.github.miuzarte.fhradio.model.SampleType
 import io.github.miuzarte.fhradio.pages.preference.VolumePreference
-import io.github.miuzarte.fhradio.scaffolds.ArrowSlider
-import io.github.miuzarte.fhradio.scaffolds.LazyColumn
-import io.github.miuzarte.fhradio.scaffolds.ReorderableList
-import io.github.miuzarte.fhradio.scaffolds.SectionSmallTitle
+import io.github.miuzarte.fhradio.scaffolds.*
 import io.github.miuzarte.fhradio.ui.contextClick
 import io.github.miuzarte.fhradio.util.format
 import io.github.miuzarte.fhradio.util.formatTime
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import top.yukonga.miuix.kmp.basic.*
 import top.yukonga.miuix.kmp.icon.MiuixIcons
@@ -37,7 +35,9 @@ import top.yukonga.miuix.kmp.preference.OverlayDropdownPreference
 import top.yukonga.miuix.kmp.preference.SwitchPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme.colorScheme
 import kotlin.math.roundToInt
+import kotlin.random.Random
 import kotlin.time.Duration
+import kotlin.time.Duration.Companion.milliseconds
 
 @Composable
 fun SettingsScreen(
@@ -55,8 +55,19 @@ fun SettingsScreen(
 
     Scaffold(
         topBar = {
+            val minutes = AppSettings.totalPlaybackMinutes
+            val subtitle = buildString {
+                append("已播放")
+                val d = minutes / 1440
+                val h = (minutes % 1440) / 60
+                val m = minutes % 60
+                if (d > 0) append("${d}天")
+                if (h > 0) append("${h}小时")
+                append("${m}分钟")
+            }
             TopAppBar(
                 title = "设置",
+                subtitle = subtitle,
                 color = colorScheme.surface,
                 scrollBehavior = scrollBehavior,
             )
@@ -64,12 +75,10 @@ fun SettingsScreen(
     ) { contentPadding ->
         val listState = rememberLazyListState()
 
+        // Radio
         val mode by rememberUpdatedState(AppSettings.radioMode)
 
-        val playMode by remember(AppSettings.playMode) {
-            mutableStateOf(AppSettings.playMode)
-        }
-
+        // RandomMode
         var stingerProbability by remember(AppSettings.stingerProbability) {
             mutableStateOf(AppSettings.stingerProbability)
         }
@@ -85,9 +94,22 @@ fun SettingsScreen(
             mutableStateOf(AppSettings.djGameEvents)
         }
 
+        // SeedMode
+        var seedText by remember { mutableStateOf(AppSettings.seedString) }
+        val seedValue = remember(seedText) { AppSettings.parseSeed(seedText) }
+
+        // PlayerMode
+        val playMode by remember(AppSettings.playMode) {
+            mutableStateOf(AppSettings.playMode)
+        }
+
         val crossLists by remember(AppSettings.crossLists) {
             mutableStateOf(AppSettings.crossLists)
         }
+
+        var maxContinuousTrack by remember { mutableStateOf(AppSettings.maxContinuousTrack.toFloat()) }
+        var maxContinuousStinger by remember { mutableStateOf(AppSettings.maxContinuousStinger.toFloat()) }
+        var maxContinuousDj by remember { mutableStateOf(AppSettings.maxContinuousDj.toFloat()) }
 
         val patternEnabled by remember(AppSettings.patternEnabled) {
             mutableStateOf(AppSettings.patternEnabled)
@@ -103,12 +125,14 @@ fun SettingsScreen(
         val excludedTrackSuffixes by remember(AppSettings.excludedTrackSuffixes) {
             mutableStateOf(AppSettings.excludedTrackSuffixes)
         }
-
-        var showExcludeSuffixDialog by remember { mutableStateOf(false) }
         var editingExcludeSuffixes by remember(AppSettings.excludedTrackSuffixes) {
             mutableStateOf(AppSettings.excludedTrackSuffixes)
         }
 
+        // Application
+        val audioDucking by remember(AppSettings.audioDucking) {
+            mutableStateOf(AppSettings.audioDucking)
+        }
         val autoResume by remember(AppSettings.autoResume) {
             mutableStateOf(AppSettings.autoResume)
         }
@@ -116,15 +140,15 @@ fun SettingsScreen(
             mutableStateOf(AppSettings.tracksTopAppBarKeepProgressBar)
         }
 
-        var maxContinuousTrack by remember { mutableStateOf(AppSettings.maxContinuousTrack.toFloat()) }
-        var maxContinuousStinger by remember { mutableStateOf(AppSettings.maxContinuousStinger.toFloat()) }
-        var maxContinuousDj by remember { mutableStateOf(AppSettings.maxContinuousDj.toFloat()) }
-
         var showPatternSheet by remember { mutableStateOf(false) }
-        var showNodeEditSheet by remember { mutableStateOf(false) }
-        var showPlaylistSheet by remember { mutableStateOf(false) }
-        var playList by remember { mutableStateOf<Pair<List<PlaySection>, Int?>?>(null) }
         var editingNodeIndex by remember { mutableStateOf(-1) }
+        var showNodeEditSheet by remember { mutableStateOf(false) }
+
+        var showExcludeSuffixDialog by remember { mutableStateOf(false) }
+
+        // Debug
+        var playList by remember { mutableStateOf<Pair<List<PlaySection>, Int?>?>(null) }
+        var showPlaylistSheet by remember { mutableStateOf(false) }
 
         LazyColumn(
             contentPadding = contentPadding,
@@ -140,15 +164,14 @@ fun SettingsScreen(
                     selectedTabIndex = AppSettings.radioMode.ordinal,
                     onTabSelected = { index ->
                         haptic.contextClick()
-                        when (index) {
-                            RadioMode.Seed.ordinal -> {
-                                AppRuntime.snackbar("未实现")
-                                return@TabRow
-                            }
-                        }
-                        if (RadioMode.entries[index] == AppSettings.radioMode)
+                        val mode = RadioMode.entries[index]
+                        if (mode == AppSettings.radioMode) {
                             Radio.reset() // 保存设置在相同时不会触发重置, 手动触发
-                        AppSettings.radioMode = RadioMode.entries[index]
+                        } else {
+                            AppSettings.radioMode = mode
+                            if (mode == RadioMode.Seed)
+                                Radio.selectedStation?.let { Radio.setStation(it) }
+                        }
                     },
                 )
                 Card {
@@ -205,14 +228,15 @@ fun SettingsScreen(
                                     }
                                 },
                             )
+                            // DJ 集合
                             ArrowPreference(
                                 title = "DJ 集合",
-                                summary = "按 DJ.GameEvent 筛选，白名单，除了全不选时会视为全选",
+                                summary = "按 DJ.GameEvent 筛选，白名单，全不选则使用默认集合",
                                 endActions = {
                                     Text(
                                         text = djGameEvents
                                             .sorted()
-                                            .joinToString(",")
+                                            .joinToString(limit = 3, truncated = "...")
                                             .ifEmpty { "无" },
                                         color = colorScheme.onSurfaceVariantActions,
                                     )
@@ -228,11 +252,33 @@ fun SettingsScreen(
                     // 种子控制
                     AnimatedVisibility(mode == RadioMode.Seed) {
                         Column {
+                            Column(
+                                modifier = Modifier.padding(UiSpacing.Large),
+                                verticalArrangement = Arrangement.spacedBy(UiSpacing.Medium),
+                            ) {
+                                SuperTextField(
+                                    value = seedText,
+                                    onValueChange = { seedText = it },
+                                    label = "种子",
+                                    singleLine = true,
+                                    onFocusLost = {
+                                        AppSettings.seedString = seedText
+                                        if (seedText.toIntOrNull() != null && Random.nextInt(100) < 1) {
+                                            AppRuntime.snackbar("你知道吗：将同样的字符串用于 Minecraft 世界生成器种子也会得到一样的值")
+                                        }
+                                    },
+                                )
+                                Text(
+                                    text = "值：$seedValue",
+                                    color = colorScheme.onSurfaceVariantActions,
+                                )
+                            }
                         }
                     }
                     // 播放器
                     AnimatedVisibility(mode == RadioMode.Player) {
                         Column {
+                            // 播放模式
                             OverlayDropdownPreference(
                                 title = "播放模式",
                                 entry = DropdownEntry(
@@ -380,6 +426,7 @@ fun SettingsScreen(
                                     )
                                 }
                             }
+                            // Stinger 交叉淡出
                             SwitchPreference(
                                 title = "Stinger 交叉淡出",
                                 summary = "在 Stinger.StartNextTrack 时切歌而不是 Stinger.End",
@@ -390,24 +437,29 @@ fun SettingsScreen(
                             )
                         }
                     }
-                    ArrowPreference(
-                        title = "按后缀排除曲目",
-                        summary = "按 SoundName 的后缀排除部分用于游戏中剧情的曲目",
-                        endActions = {
-                            Text(
-                                text = excludedTrackSuffixes
-                                    .sorted()
-                                    .joinToString(",")
-                                    .ifEmpty { "无" },
-                                color = colorScheme.onSurfaceVariantActions,
+                    AnimatedVisibility(mode != RadioMode.Seed) {
+                        Column {
+                            // 按后缀排除曲目
+                            ArrowPreference(
+                                title = "按后缀排除曲目",
+                                summary = "按 SoundName 的后缀排除部分用于游戏中剧情的曲目",
+                                endActions = {
+                                    Text(
+                                        text = excludedTrackSuffixes
+                                            .sorted()
+                                            .joinToString(",")
+                                            .ifEmpty { "无" },
+                                        color = colorScheme.onSurfaceVariantActions,
+                                    )
+                                },
+                                onClick = {
+                                    haptic.contextClick()
+                                    editingExcludeSuffixes = excludedTrackSuffixes
+                                    showExcludeSuffixDialog = true
+                                },
                             )
-                        },
-                        onClick = {
-                            haptic.contextClick()
-                            editingExcludeSuffixes = excludedTrackSuffixes
-                            showExcludeSuffixDialog = true
-                        },
-                    )
+                        }
+                    }
                 }
             }
 
@@ -415,6 +467,15 @@ fun SettingsScreen(
                 SectionSmallTitle("应用")
                 Card {
                     VolumePreference() // 音量
+                    SwitchPreference(
+                        title = "音频回避",
+                        summary = "DJ Sample 播放时降低 Track 音量" +
+                                "\n桌面端无效，vlc 无法单独控制多个 Player 的音量",
+                        checked = audioDucking,
+                        onCheckedChange = {
+                            AppSettings.audioDucking = it
+                        },
+                    )
                     SwitchPreference(
                         title = "启动应用后自动播放",
                         summary = "应用就绪后直接继续播放最后选中的电台",
@@ -443,15 +504,92 @@ fun SettingsScreen(
                         onCheckedChange = { AppRuntime.debug = it },
                     )
                     AnimatedVisibility(AppRuntime.debug) {
-                        ArrowPreference(
-                            title = "查看播放列表",
-                            onClick = {
-                                haptic.contextClick()
-                                playList = Radio.getPlayList()
-                                showPlaylistSheet = true
-                            },
-                            holdDownState = showPlaylistSheet,
-                        )
+                        Column {
+                            ArrowPreference(
+                                title = "查看播放列表",
+                                onClick = {
+                                    haptic.contextClick()
+                                    playList = Radio.getPlayList()
+                                    showPlaylistSheet = true
+                                },
+                                holdDownState = showPlaylistSheet,
+                            )
+                            var mainVol by remember { mutableStateOf(AppRuntime.mainPlayer.getVolume()) }
+                            var secondaryVol by remember { mutableStateOf(AppRuntime.secondaryPlayer.getVolume()) }
+                            LaunchedEffect(Unit) {
+                                while (isActive) {
+                                    AppRuntime.mainPlayer.getVolume().takeIf { it > 0 }?.let { mainVol = it }
+                                    AppRuntime.secondaryPlayer.getVolume().takeIf { it > 0 }?.let { secondaryVol = it }
+                                    delay(20.milliseconds)
+                                }
+                            }
+                            ArrowSlider(
+                                title = "主音量",
+                                value = mainVol.toFloat(),
+                                onValueChange = {
+                                    mainVol = it.roundToInt()
+                                    AppRuntime.mainPlayer.setVolume(mainVol)
+                                },
+                                valueRange = 0f..100f,
+                                steps = 100,
+                                unit = "%",
+                                displayFormatter = { "${it.toInt()}" },
+                                onInputConfirm = {
+                                    mainVol = it.toFloat().roundToInt()
+                                    AppRuntime.mainPlayer.setVolume(mainVol)
+                                },
+                            )
+                            ArrowSlider(
+                                title = "副音量",
+                                value = secondaryVol.toFloat(),
+                                onValueChange = {
+                                    secondaryVol = it.roundToInt()
+                                    AppRuntime.secondaryPlayer.setVolume(secondaryVol)
+                                },
+                                valueRange = 0f..100f,
+                                steps = 100,
+                                unit = "%",
+                                displayFormatter = { "${it.toInt()}" },
+                                onInputConfirm = {
+                                    secondaryVol = it.toFloat().roundToInt()
+                                    AppRuntime.secondaryPlayer.setVolume(secondaryVol)
+                                },
+                            )
+                            var mainPreamp by remember { mutableStateOf(0f) }
+                            var secondaryPreamp by remember { mutableStateOf(0f) }
+                            ArrowSlider(
+                                title = "主增益",
+                                value = mainPreamp,
+                                onValueChange = {
+                                    mainPreamp = it
+                                    AppRuntime.mainPlayer.setPreamp(it)
+                                },
+                                valueRange = -10f..0f,
+                                steps = (0 + 10) * 10 - 1,
+                                unit = "db",
+                                displayFormatter = { "${it.toInt()}" },
+                                onInputConfirm = {
+                                    mainPreamp = it.toFloat()
+                                    AppRuntime.mainPlayer.setPreamp(it.toFloat())
+                                },
+                            )
+                            ArrowSlider(
+                                title = "副增益",
+                                value = secondaryPreamp,
+                                onValueChange = {
+                                    secondaryPreamp = it
+                                    AppRuntime.secondaryPlayer.setPreamp(it)
+                                },
+                                valueRange = -10f..0f,
+                                steps = (0 + 10) * 10 - 1,
+                                unit = "db",
+                                displayFormatter = { "${it.toInt()}" },
+                                onInputConfirm = {
+                                    secondaryPreamp = it.toFloat()
+                                    AppRuntime.secondaryPlayer.setPreamp(it.toFloat())
+                                },
+                            )
+                        }
                     }
                 }
             }
@@ -462,9 +600,9 @@ fun SettingsScreen(
 
                     var frameCount by remember { mutableStateOf(0) }
                     LaunchedEffect(Unit) {
-                        while (true) {
-                            withFrameMillis {}
+                        while (isActive) {
                             frameCount++
+                            delay(20.milliseconds)
                         }
                     }
 

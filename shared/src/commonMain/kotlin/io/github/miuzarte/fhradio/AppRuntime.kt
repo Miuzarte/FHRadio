@@ -64,7 +64,7 @@ object AppRuntime {
 
     fun setVolume(volume: Int) {
         lastAppVolumeChangeEpochMs = Clock.System.now().toEpochMilliseconds()
-        mainPlayer.setVolume(volume)
+        mainPlayer.setVolume(if (Radio.djActive) volume / 2 else volume)
         secondaryPlayer.setVolume(volume)
     }
 
@@ -78,13 +78,13 @@ object AppRuntime {
         } else null
 
     internal fun syncVolumeFromPlayers(force: Boolean = false) {
-        if (!needVolumeSync) return
+        if (!needVolumeSync || Radio.djActive) return
         val now = Clock.System.now().toEpochMilliseconds()
         if (!force && now - lastAppVolumeChangeEpochMs < 100) return
 
         // 只取一个就行
         val vol = mainPlayer.getVolume()
-        if (vol < 0) return
+        if (vol <= 0) return
 
         if (abs(vol - AppSettings.volume) > 1) {
             AppSettings.volume = vol

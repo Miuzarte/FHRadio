@@ -6,13 +6,16 @@ import androidx.compose.runtime.setValue
 import io.github.miuzarte.fhradio.model.PlayerState
 import okio.Path.Companion.toPath
 import uk.co.caprica.vlcj.factory.MediaPlayerFactory
+import uk.co.caprica.vlcj.player.base.Equalizer
 import uk.co.caprica.vlcj.player.base.MediaPlayer
 import uk.co.caprica.vlcj.player.base.MediaPlayerEventAdapter
 import java.io.File
 import kotlin.math.cbrt
 import kotlin.math.roundToInt
+import kotlin.time.Clock
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
+import kotlin.time.Instant
 
 actual class AudioPlayer actual constructor(val tag: String) {
 
@@ -34,6 +37,7 @@ actual class AudioPlayer actual constructor(val tag: String) {
         player.events().addMediaPlayerEventListener(
             object: MediaPlayerEventAdapter() {
                 override fun playing(mediaPlayer: MediaPlayer) {
+                    playBeginInstant = Clock.System.now()
                     state = state.copy(status = PlayerState.Status.Playing)
                 }
 
@@ -83,10 +87,15 @@ actual class AudioPlayer actual constructor(val tag: String) {
     actual var state by mutableStateOf(PlayerState())
         private set
 
+    private var playBeginInstant: Instant? = null
+    private var playBeginPos: Duration = Duration.ZERO
+
     actual fun play(path: String, beginAt: Duration) {
         val beginMs = beginAt.inWholeMilliseconds
         player.controls().stop()
         state = state.copy(currentPath = path, position = beginAt, status = PlayerState.Status.Opening)
+        playBeginInstant = null
+        playBeginPos = beginAt
         player.media().play(path)
         if (beginMs > 0) {
             player.controls().setTime(beginMs)
@@ -100,12 +109,25 @@ actual class AudioPlayer actual constructor(val tag: String) {
     }
 
     actual fun stop() {
+        playBeginInstant = null
         player.controls().stop()
         state = state.copy(currentPath = null, position = Duration.ZERO)
     }
 
     actual fun pause() = player.controls().setPause(true)
-    actual fun resume() = player.controls().setPause(false)
+    actual fun resume() {
+        playBeginInstant = Clock.System.now()
+        playBeginPos = state.position
+        player.controls().setPause(false)
+    }
+
+    actual fun getComputedPosition(): Duration {
+        val begin = playBeginInstant ?: return state.position
+        val elapsed = Clock.System.now() - begin
+        val computed = playBeginPos + elapsed
+        return if (state.duration > Duration.ZERO) computed.coerceAtMost(state.duration) else computed
+    }
+
     actual fun setVolume(volume: Int): Boolean {
         val linear = (volume.coerceIn(0, 800).toDouble()) / 100.0
         val vlcVol = (cbrt(linear) * 100.0).roundToInt().coerceIn(0, 200)
@@ -116,6 +138,17 @@ actual class AudioPlayer actual constructor(val tag: String) {
         val vlcVol = player.audio().volume().toDouble() / 100.0
         return ((vlcVol * vlcVol * vlcVol) * 100.0).roundToInt().coerceIn(0, 800)
     }
+
+    actual fun setPreamp(db: Float) {
+        if (db == 0f) {
+            player.audio().setEqualizer(null)
+        } else {
+            val eq = Equalizer(10)
+            eq.setPreamp(db)
+            player.audio().setEqualizer(eq)
+        }
+    }
+
     actual fun dispose() {
         player.release()
         factory.release()
@@ -130,8 +163,12 @@ actual class AudioPlayer actual constructor(val tag: String) {
             // FHRadio\desktopApp\build\compose\binaries\main-release\app\io.github.miuzarte.fhradio
             // FHRadio\vlc
             "..".toPath() / ".." / ".." / ".." / ".." / ".." / ".." / "vlc",
+            "B:".toPath() / "Program Files" / "VideoLAN" / "VLC",
+            "B:".toPath() / "Program Files (x86)" / "VideoLAN" / "VLC",
             "C:".toPath() / "Program Files" / "VideoLAN" / "VLC",
             "C:".toPath() / "Program Files (x86)" / "VideoLAN" / "VLC",
+            "D:".toPath() / "Program Files" / "VideoLAN" / "VLC",
+            "D:".toPath() / "Program Files (x86)" / "VideoLAN" / "VLC",
         ).map { it.toString() }
         for (dir in candidates) {
             if (File(dir, "libvlc.dll").exists()) return dir

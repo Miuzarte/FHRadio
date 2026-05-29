@@ -61,29 +61,12 @@ object Scheduler {
         if (watcherJob?.isActive == true) return
         watcherJob = scope.launch {
             while (isActive) {
-                // 取快照避免回调中新增 marker 导致并发修改
                 val snapshot = jobs.toList()
-                val toFire = mutableListOf<Job>()
-
-                val activePlayers = snapshot.map { it.player }.distinct()
-
-                for (player in activePlayers) {
-                    val state = player.state
-                    toFire.addAll(
-                        if (state.status.isBusy) snapshot.filter {
-                            it.player === player && state.position >= it.triggerPosition
-                        }
-                        else snapshot.filter {
-                            it.player === player
-                        },
-                    )
-                }
-
-                // 按触发位置升序排列, 保证同一 tick 内的执行顺序
-                toFire.sortBy { it.triggerPosition }
+                val toFire = snapshot
+                    .filter { it.player.getComputedPosition() >= it.triggerPosition }
+                    .sortedBy { it.triggerPosition }
 
                 for (job in toFire) {
-                    // 二次检查: 可能已被之前的 marker 回调调用 Scheduler.cancel() 清掉
                     if (job in jobs) {
                         jobs.remove(job)
                         jobs.removeAll { it.tag == job.tag }
@@ -91,7 +74,7 @@ object Scheduler {
                     }
                 }
 
-                delay((1000 / 20).milliseconds)
+                delay(20.milliseconds)
             }
         }
     }

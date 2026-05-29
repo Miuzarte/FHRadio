@@ -1,4 +1,4 @@
-# USAGE
+# Import Guide
 
 ## 文件准备
 
@@ -10,7 +10,8 @@
 位于 `ForzaHorizon6\media\Audio\RadioInfo_*.xml`,
 语言地区代码根据需要的语言进行选择,
 比如不喜欢中文 (CN) 的台呼 CV 语音可以选择英文 (EN),
-最好能跟后续的 `FMODBank` 选择匹配
+需要跟后续的 `FMODBank` 选择匹配,
+否则如果跳转标记点不匹配实际音频会导致巨缝切歌
 
 ### 解包音频
 
@@ -36,13 +37,13 @@
           - 4: R2_Tracks_Disk.assets.bank
           - 5: R3_Tracks_CU1.assets.bank
           - 6: R4_Tracks_CU1.assets.bank
-          - 7: R5_Tracks_Disk.assets.bank (R5 的曲目在 `_Disk` 内)
+          - 7: R5_Tracks_Disk.assets.bank (R5 的曲目都在 `_Disk` 内)
           - 8: R6_Tracks_CU1.assets.bank
           - 9: R7_Tracks_CU1.assets.bank
           - 10: R8_Tracks_CU1.assets.bank
           - 11: R9_Tracks_CU1.assets.bank
           - (btw R10 里只有一首, 是游戏启动到主菜单的音乐)
-      - Stinger: (建议不跳过)
+      - Stinger: (建议不跳过, 种子控制模式需要)
         - 搜索 `R*_Stingers_CN.assets.bank`, 语言地区代码最好匹配前面选择的 `RadioInfo_*.xml`, 例如 `R*_Stingers_EN`
         - 复制 `R1_Stingers_*.assets.bank` ~ `R9_Stingers_*.assets.bank`
           - 1: R1_Stingers_CN.assets.bank
@@ -54,7 +55,7 @@
           - 7: R7_Stingers_CN.assets.bank
           - 8: R8_Stingers_CN.assets.bank
           - 9: R9_Stingers_CN.assets.bank
-      - DJ: (可以跳过)
+      - DJ: (种子控制模式需要)
         - 搜索 `VO_DJ_*_CN.assets.bank`
         - 复制 `VO_DJ_01_CN.assets.bank` ~ `VO_DJ_09_CN.assets.bank`
           - 1: VO_DJ_01_CN.assets.bank
@@ -69,12 +70,16 @@
 3. 解包复制好的 banks
     - 启动 `Fmod_Bank_Tools\Fmod_Bank_Tools.exe`
     - 点击左上角的 `Extract` 等待解包完毕 ("Extracting Bank files has finished.")
-    - 关闭
+    - 关闭 `Fmod_Bank_Tools`
+
+### (可选) 音频响度均衡
+
+`Stinger` 与 `DJ` 的响度都在 -21 LUFS，而 `Track` 在 -24 ~ -23 LUFS，两者之间的响度有较明显的差异，有条件的话推荐将 `DJ` 的响度下调至 -23 ~ -22 LUFS
 
 ### (可选) 音频压缩/格式转码
 
 - 将解包出来的 `.wav` 音频转换为 `.flac`/`.mp3` 等压缩后的音频格式
-  - 所有电台包括 `Tracks`, `Stinger`, `DJ` 解包后占用一共 `12.9 GB`, 按 ffmpeg -compression_level 8 压缩为 `flac` 并删除 `DJ` 后, 占用 `4.63 GB`
+  - 所有电台包括 `Track`, `Stinger`, `DJ` 解包后占用一共 `12.9 GB`, 按 ffmpeg -compression_level 8 压缩为 `flac` 后, 占用 `6.32 GB`
   - 具体支持格式取决于平台
     - Desktop: 基于 [vlc](https://www.videolan.org/vlc/), [caprica/vlcj](https://github.com/caprica/vlcj), 支持绝大部分音频格式
     - Android: 基于 [MediaCodec](https://developer.android.com/media/platform/supported-formats), 根据文档: `flac`, `mp3`, `aac`, `ogg`(`opus`)
@@ -104,9 +109,11 @@
   - 先选择 `ForzaHorizon6\media\Audio\RadioInfo_*.xml` 并确认
   - 再选择 `Fmod_Bank_Tools\wav\`(如果未移动) 并确认
     - 选择包含所有电台的 `wav\`, 而不是单个电台文件夹
-  - 简单对电台源进行命名、排序后保存即可
+  - 简单对电台源进行命名、排序后返回即可
 
 ### 示例结果
+
+Windows:
 
 ```tree
 B:\SOFTWARE\FMOD_BANK_TOOLS\WAV
@@ -152,4 +159,41 @@ B:\SOFTWARE\FMOD_BANK_TOOLS\WAV
 │              
 ├─Horizon Block Party
 ...
+```
+
+Android:
+
+```find
+/sdcard/Music/Forza Horizon 6
+|____Gacha City Radio
+| |____Stinger
+| | |____sound_0.flac
+| | |____...
+| | |____sound_9.flac
+| |____Track
+| | |____sound_0.flac
+| | |____...
+| | |____sound_24.flac
+| |____DJ
+| | |____sound_99.flac
+| | |____...
+| | |____sound_246.flac
+|____Horizon Bass Arena
+| |____Stinger
+| | |____sound_0.flac
+| | |____...
+| | |____sound_9.flac
+| |____Track
+| | |____CU1
+| | | |____sound_0.flac
+| | | |____...
+| | | |____sound_26.flac
+| | |____Disk
+| | | |____sound_0.flac
+| | | |____sound_1.flac
+| |____DJ
+| | |____sound_0.flac
+| | |____...
+| | |____sound_196.flac
+|____Horizon Block Party
 ```

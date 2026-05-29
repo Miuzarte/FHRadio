@@ -25,3 +25,11 @@ AGENTS.md
 
 localFiles/
 *.log
+
+# --- icon derivatives ---
+desktopApp/resources/windows/icon.ico
+desktopApp/resources/macos/icon.icns
+desktopApp/resources/macos/icon.png
+desktopApp/resources/linux/icon.png
+iosApp/iosApp/Assets.xcassets/AppIcon.appiconset/app-icon-1024.png
+shared/src/commonMain/composeResources/drawable/ic_launcher.png

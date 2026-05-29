@@ -22,11 +22,6 @@ data class PlaySection(
         require(track != null || stinger != null || dj != null) {
             "At least one of track, stinger, or dj must be non-null"
         }
-
-        // 让使用方按需判断
-        // if (isStingerAndDjMutuallyExclusive()) {
-        //     "Stinger and DJ coexist"
-        // }
     }
 
     val isStingerAndDjMutuallyExclusive: Boolean
@@ -42,7 +37,7 @@ data class PlaySection(
         get() = track != null && dj != null
 }
 
-abstract class RadioModeEngineV2(
+abstract class RadioModeEngine(
     val station: RadioStation, // not nullable
 ) {
     // 提供当前播放的, 返回下一个要播放的
@@ -61,37 +56,4 @@ abstract class RadioModeEngineV2(
 
     // 用于向 Engine 同步播放状态
     open fun onSectionStarted(section: PlaySection) {}
-}
-
-abstract class RadioModeEngine(
-    val station: RadioStation, // not nullable
-) {
-    abstract fun scheduleModeMarkers(
-        sample: Sample,
-        beginAt: Duration = Duration.ZERO,
-    )
-
-    // 用于单个电台的继续播放
-    abstract fun getResume(
-        playbackState: PlaybackState,
-    ): PlayItem?
-
-    abstract fun getNext(
-        type: SampleType,
-        step: Int = 1,
-        exclude: Set<Sample> = emptySet(),
-    ): PlayItem?
-
-    // 重置 engine 状态
-    // 例如重新构建播放列表
-    abstract fun reset()
-
-    open fun getPlaylist(): Pair<List<Sample>, Int>? = null
-
-    // 提供当前播放的, 返回下一个要播放的
-    // RandomEngine 中, 如果 current 为 null, 可以返回随机曲目与随机切入点用于初始播放
-    open fun next(current: Sample?): PlayItem? = null
-
-    // 提供 PlayItem, Engine 负责派发 Marker
-    open fun scheduleFor(playItem: PlayItem): Boolean = false
 }

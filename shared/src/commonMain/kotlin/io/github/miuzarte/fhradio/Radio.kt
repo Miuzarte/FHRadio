@@ -12,7 +12,9 @@ import okio.FileNotFoundException
 import top.yukonga.miuix.kmp.basic.SnackbarDuration
 import kotlin.time.Clock
 import kotlin.time.Duration
+import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
+import kotlin.time.DurationUnit
 import kotlin.time.Instant
 
 internal fun debugDo(block: () -> Unit) {
@@ -42,7 +44,7 @@ object Radio {
 
     var selectedStation: RadioStation? by mutableStateOf(null)
         private set
-    private var modeEngine: RadioModeEngineV2? = null
+    private var modeEngine: RadioModeEngine? = null
 
     fun getPlayList() = modeEngine?.getPlayList()
 
@@ -77,7 +79,7 @@ object Radio {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
 
     // 每秒保存播放状态, 用于启动应用时自动恢复
-    private var periodicSaveJob: Job? =
+    private var playbackStateJob: Job? =
         scope.launch(Dispatchers.Default) {
             while (isActive) {
                 delay(1.seconds)
@@ -85,12 +87,23 @@ object Radio {
             }
         }
 
+    // 每分钟保存播放时长
+    private val playbackStatsJob = scope.launch {
+        while (isActive) {
+            delay(60.seconds)
+            if (selectedStation != null &&
+                (mainPlayer.state.status == PlayerState.Status.Playing ||
+                        secondaryPlayer.state.status == PlayerState.Status.Playing)
+            ) {
+                AppSettings.totalPlaybackMinutes++
+            }
+        }
+    }
+
     // --- Station lifecycle ---
 
     fun reset() {
-        // require(selectedStation != null) { "no station selected" }
-
-        if (selectedStation == null) return // nothing to do
+        if (selectedStation == null) return
         modeEngine = selectEngine(selectedStation!!)
         currentSection?.let { modeEngine?.onSectionStarted(it) }
     }
@@ -100,15 +113,15 @@ object Radio {
         play: Boolean = true,
     ) {
         AppSettings.saveLastStation(station)
+        Scheduler.cancel()
+        stopBothPlayer()
+        modeEngine = null
+        selectedStation = null
 
         // close station
         if (station == null) {
             AppSettings.lastStationName = null
             AppSettings.lastStationXmlPath = null
-            Scheduler.cancel()
-            stopBothPlayer()
-            selectedStation = null
-            modeEngine = null
             stopForegroundService()
             return
         }
@@ -143,8 +156,8 @@ object Radio {
             )
 
             RadioMode.Seed -> SeedEngine(
-                // TODO: implement
                 station = station,
+                seed = AppSettings.seed,
             )
 
             RadioMode.Player -> PlayerEngine(
@@ -201,6 +214,9 @@ object Radio {
         private set
     var djSlot by mutableStateOf(PlaySlot<DjSample>())
         private set
+    var djActive: Boolean by mutableStateOf(false)
+        private set
+    private var accumulatedDriftMs: Long = 0
 
     fun beginSample(
         playItem: PlayItem,
@@ -249,6 +265,7 @@ object Radio {
 
     private fun stopBothPlayer(saveState: Boolean = true) {
         currentSection = null
+        accumulatedDriftMs = 0
 
         // 先停止 secondary, 使 main 在之后保存状态以覆盖 secondary
         stopSecondaryPlayer(saveState)
@@ -274,12 +291,36 @@ object Radio {
 
         stingerSlot = PlaySlot()
         djSlot = PlaySlot()
+
+        if (djActive) {
+            djActive = false
+            mainPlayer.setVolume(AppSettings.volume)
+        }
     }
 
     fun nextSection() {
         val current = currentSection ?: return
         val next = modeEngine?.next(current) ?: return
         beginSection(next.copy(solo = true))
+    }
+
+    private fun fadeVolume(
+        player: AudioPlayer,
+        from: Int,
+        to: Int,
+        duration: Duration = 500.milliseconds,
+    ) {
+        if (from == to) return
+        scope.launch {
+            val steps = ((duration * 60) / 1000).toInt(DurationUnit.MILLISECONDS).coerceIn(1, 60)
+            val stepDelay = duration / steps
+            for (i in 1..steps) {
+                val t = i.toDouble() / steps
+                val vol = (from + (to - from) * t).toInt()
+                player.setVolume(vol)
+                delay(stepDelay)
+            }
+        }
     }
 
     // 基于音频播放位置派发 marker
@@ -295,10 +336,14 @@ object Radio {
 
         // Radio 继续下一段
         fun continueNext(useTryPlay: Boolean = false) {
+            val computed = mainPlayer.getComputedPosition()
+            val drift = (computed - mainPlayer.state.position)
+                .inWholeMilliseconds.coerceIn(-500, 500)
+            accumulatedDriftMs += drift
+            if (drift != 0L) debugSnack("漂移：${drift}ms，累计：${accumulatedDriftMs}ms")
+
             modeEngine?.next(section)
-                ?.let {
-                    beginSection(it, useTryPlay = useTryPlay)
-                }
+                ?.let { beginSection(it, useTryPlay = useTryPlay) }
         }
 
         fun scheduleOne(
@@ -334,7 +379,17 @@ object Radio {
                 currentSection = section
                 modeEngine?.onSectionStarted(section)
 
-                val stingerStart = track.sample.stingerStart ?: track.sample.duration
+                // 做漂移补偿: 提前触发 Track.StingerStart
+                val drift = accumulatedDriftMs.coerceIn(-2000, 2000)
+                accumulatedDriftMs = 0
+                if (drift != 0L) debugSnack("补偿：${drift}ms，累计已清零")
+
+                if (!beginSample(track, useTryPlay = useTryPlay)) return
+                currentSection = section
+                modeEngine?.onSectionStarted(section)
+
+                val stingerStart = (track.sample.stingerStart!! - drift.milliseconds)
+                    .coerceAtLeast(Duration.ZERO)
                 scheduleOne("Track.StingerStart", stingerStart, mainPlayer) {
                     beginSample(stinger)
 
@@ -342,6 +397,8 @@ object Radio {
                     if (stingerUseStartNextTrack) {
                         val startNextTrack = stinger.sample.startNextTrack ?: stinger.sample.end
                         scheduleOne("Stinger.StartNextTrack", startNextTrack, secondaryPlayer) {
+                            // 取消掉 .End 的 marker, tryPlay 有概率失效
+                            Scheduler.cancel("Stinger.End")
                             continueNext()
                         }
                     }
@@ -359,13 +416,24 @@ object Radio {
                 currentSection = section
                 modeEngine?.onSectionStarted(section)
 
-                val djStart = track.sample.djStart ?: track.sample.duration
+                val djStart = track.sample.djStart!!
                 scheduleOne("Track.DJStart", djStart, mainPlayer) {
                     beginSample(dj)
-
-                    scheduleOne("DJ.SampleLength", dj.sample.end, secondaryPlayer) {
-                        continueNext(useTryPlay = true)
+                    if (AppSettings.audioDucking) {
+                        djActive = true
+                        fadeVolume(mainPlayer, AppSettings.volume, AppSettings.volume / 2)
                     }
+
+                    scheduleOne("DJ.End", dj.sample.end, secondaryPlayer) {
+                        if (AppSettings.audioDucking) {
+                            fadeVolume(mainPlayer, AppSettings.volume / 2, AppSettings.volume)
+                            djActive = false
+                        }
+                        djSlot = PlaySlot()
+                    }
+                }
+                scheduleOne("Track.End", track.sample.end, mainPlayer) {
+                    continueNext()
                 }
             }
 
@@ -377,18 +445,29 @@ object Radio {
                 when {
                     section.stinger != null -> {
                         val stinger = section.stinger
-                        if (!beginSample(stinger, useTryPlay = useTryPlay)) return
+
+                        val drift = accumulatedDriftMs.coerceIn(-2000, 2000)
+                        accumulatedDriftMs = 0
+                        if (drift != 0L) debugSnack("补偿：${drift}ms，累计已清零")
+
+                        val adjustedStinger = if (drift != 0L)
+                            PlayItem.Stinger(stinger.sample,
+                                (stinger.beginAt + drift.milliseconds).coerceIn(Duration.ZERO, stinger.sample.end))
+                        else stinger
+
+                        if (!beginSample(adjustedStinger, useTryPlay = useTryPlay)) return
                         currentSection = section
                         modeEngine?.onSectionStarted(section)
 
                         // 交叉淡出
                         if (stingerUseStartNextTrack) {
-                            val startNextTrack = stinger.sample.startNextTrack ?: stinger.sample.end
+                            val startNextTrack = adjustedStinger.sample.startNextTrack ?: adjustedStinger.sample.end
                             scheduleOne("Stinger.StartNextTrack", startNextTrack, secondaryPlayer) {
+                                Scheduler.cancel("Stinger.End")
                                 continueNext()
                             }
                         }
-                        scheduleOne("Stinger.End", stinger.sample.end, secondaryPlayer) {
+                        scheduleOne("Stinger.End", adjustedStinger.sample.end, secondaryPlayer) {
                             continueNext(useTryPlay = true)
                         }
                     }
@@ -399,8 +478,11 @@ object Radio {
                         currentSection = section
                         modeEngine?.onSectionStarted(section)
 
-                        scheduleOne("DJ.SampleLength", dj.sample.end, secondaryPlayer) {
-                            continueNext(useTryPlay = true)
+                        if (AppSettings.audioDucking) djActive = true
+                        scheduleOne("DJ.End", dj.sample.end, secondaryPlayer) {
+                            if (AppSettings.audioDucking) djActive = false
+                            djSlot = PlaySlot()
+                            continueNext()
                         }
                     }
                 }

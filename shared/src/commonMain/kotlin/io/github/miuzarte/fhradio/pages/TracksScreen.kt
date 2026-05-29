@@ -201,6 +201,10 @@ fun TracksScreen(
             )
         },
         floatingToolbar = {
+            if (AppSettings.radioMode == RadioMode.Seed)
+            // SeedMode 不显示 停止/下一段
+                return@Scaffold
+
             val barCornerRadius = 16.dp
             val buttonsPadding = 8.dp
             val buttonCornerRadius = barCornerRadius - buttonsPadding
@@ -229,8 +233,10 @@ fun TracksScreen(
                     IconButton(
                         onClick = {
                             haptic.contextClick()
-                            scope.launch {
-                                Radio.nextSection()
+                            if (AppSettings.radioMode != RadioMode.Seed) {
+                                scope.launch {
+                                    Radio.nextSection()
+                                }
                             }
                         },
                         cornerRadius = buttonCornerRadius,
@@ -402,7 +408,8 @@ private fun <T: Sample> SampleCardList(
                 Card(
                     modifier = Modifier
                         .clip(RoundedCornerShape(CardDefaults.CornerRadius))
-                        .clickable {
+                        // Seed 模式不允许手动切歌
+                        .clickable(enabled = AppSettings.radioMode != RadioMode.Seed) {
                             haptic.contextClick()
                             runCatching {
                                 Radio.beginSection(playSectionFactory(sample).copy(solo = true))
@@ -449,15 +456,6 @@ private fun <T: Sample> SampleCardList(
 private fun InfoCell(text: String) {
     Text(
         text = text,
-        fontSize = 12.sp,
-        color = colorScheme.onSurface.copy(alpha = 0.6f),
-    )
-}
-
-@Composable
-private fun InfoLine(label: String, value: String) {
-    Text(
-        text = "$label: $value",
         fontSize = 12.sp,
         color = colorScheme.onSurface.copy(alpha = 0.6f),
     )

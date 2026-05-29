@@ -12,7 +12,7 @@ class RandomEngine(
     val djProbability: Int,
     val djGameEvents: Set<String>,
     val excludedTrackSuffixes: Set<String>,
-): RadioModeEngineV2(station) {
+): RadioModeEngine(station) {
 
     // 提供 current 时返回值保证不会重复
     override fun next(current: PlaySection?): PlaySection {
@@ -191,11 +191,11 @@ class RandomEngine(
     }
 
     companion object {
-        const val PLAY_DEQUE_SIZE = 4
+        const val PLAY_DEQUE_SIZE = 8
 
         // 用于排除去重最近一段时间的 Sample,
-        // 不能太大, 如 Stinger 通常只有 10 条
-        const val PLAYED_DEQUE_SIZE = 5
+        // 不能太大, 如 Stinger 只有 10 条
+        const val PLAYED_DEQUE_SIZE = 8
     }
 
     // 对 TrackSample 提高 Track.TrackLoopStart 附近的权重

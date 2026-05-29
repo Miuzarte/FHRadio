@@ -23,7 +23,9 @@ actual class AudioPlayer actual constructor(val tag: String) {
         TODO("iOS AudioPlayer not yet implemented")
     }
 
-    actual fun tryPlay(path: String, beginAt: Duration): Boolean = false
+    actual fun tryPlay(path: String, beginAt: Duration): Boolean =
+        TODO("iOS AudioPlayer not yet implemented")
+
     actual fun stop() {
         TODO("iOS AudioPlayer not yet implemented")
     }
@@ -36,8 +38,18 @@ actual class AudioPlayer actual constructor(val tag: String) {
         TODO("iOS AudioPlayer not yet implemented")
     }
 
-    actual fun setVolume(volume: Int): Boolean = TODO("iOS AudioPlayer not yet implemented")
-    actual fun getVolume(): Int = TODO("iOS AudioPlayer not yet implemented")
+    actual fun getComputedPosition(): Duration = state.position
+
+    actual fun setVolume(volume: Int): Boolean =
+        TODO("iOS AudioPlayer not yet implemented")
+
+    actual fun getVolume(): Int =
+        TODO("iOS AudioPlayer not yet implemented")
+
+    actual fun setPreamp(db: Float) {
+        TODO("iOS AudioPlayer not yet implemented")
+    }
+
     actual fun dispose() {
         TODO("iOS AudioPlayer not yet implemented")
     }

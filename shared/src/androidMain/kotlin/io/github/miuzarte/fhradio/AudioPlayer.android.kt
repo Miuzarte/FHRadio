@@ -10,14 +10,21 @@ import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
 import io.github.miuzarte.fhradio.model.PlayerState
 import kotlinx.coroutines.*
+import kotlin.math.pow
+import kotlin.time.Clock
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
+import kotlin.time.Instant
 
 actual class AudioPlayer actual constructor(val tag: String) {
 
     private val player = ExoPlayer.Builder(AndroidBridge.appContext).build()
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
+
     private var positionJob: Job? = null
+
+    private var volumeScale = 1f
+    private var baseVolume = 100
 
     init {
         player.addListener(
@@ -51,8 +58,10 @@ actual class AudioPlayer actual constructor(val tag: String) {
                 }
 
                 override fun onIsPlayingChanged(isPlaying: Boolean) {
-                    if (isPlaying)
+                    if (isPlaying) {
+                        playBeginInstant = Clock.System.now()
                         setState(PlayerState.Status.Playing)
+                    }
                 }
 
                 override fun onPlayerError(error: PlaybackException) {
@@ -66,6 +75,9 @@ actual class AudioPlayer actual constructor(val tag: String) {
     actual var state by mutableStateOf(PlayerState())
         private set
 
+    private var playBeginInstant: Instant? = null
+    private var playBeginPos: Duration = Duration.ZERO
+
     actual fun play(path: String, beginAt: Duration) {
         positionJob?.cancel()
         player.stop()
@@ -78,6 +90,8 @@ actual class AudioPlayer actual constructor(val tag: String) {
             player.seekTo(beginAt.inWholeMilliseconds)
         }
         player.play()
+        playBeginInstant = null
+        playBeginPos = beginAt
         this.state = state.copy(
             currentPath = path,
             position = beginAt,
@@ -93,6 +107,7 @@ actual class AudioPlayer actual constructor(val tag: String) {
     }
 
     actual fun stop() {
+        playBeginInstant = null
         positionJob?.cancel()
         positionJob = null
         player.stop()
@@ -110,22 +125,39 @@ actual class AudioPlayer actual constructor(val tag: String) {
     }
 
     actual fun resume() {
+        playBeginInstant = Clock.System.now()
+        playBeginPos = player.currentPosition.milliseconds.coerceAtLeast(Duration.ZERO)
         player.play()
         startPositionPolling()
     }
 
+    actual fun getComputedPosition(): Duration {
+        val begin = playBeginInstant ?: return state.position
+        val elapsed = Clock.System.now() - begin
+        val computed = playBeginPos + elapsed
+        return if (state.duration > Duration.ZERO) computed.coerceAtMost(state.duration) else computed
+    }
+
     actual fun setVolume(volume: Int): Boolean {
-        player.volume = volume.toFloat() / 100f
+        baseVolume = volume
+        player.volume = volume / 100f * volumeScale
         return true
     }
 
-    actual fun getVolume(): Int = (player.volume * 100).toInt()
+    actual fun getVolume(): Int = baseVolume
+
+    actual fun setPreamp(db: Float) {
+        volumeScale = 10f.pow(db / 20f)
+        player.volume = baseVolume / 100f * volumeScale
+    }
 
     actual fun dispose() {
         positionJob?.cancel()
         scope.cancel()
         player.release()
     }
+
+    // --- helpers ---
 
     private fun startPositionPolling() {
         positionJob?.cancel()
@@ -136,7 +168,7 @@ actual class AudioPlayer actual constructor(val tag: String) {
                     this@AudioPlayer.state =
                         this@AudioPlayer.state.copy(position = pos.milliseconds)
                 }
-                delay((1000 / 20).milliseconds)
+                delay(20.milliseconds)
             }
         }
     }

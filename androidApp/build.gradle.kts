@@ -38,7 +38,7 @@ android {
         minSdk = libs.versions.android.minSdk.get().toInt()
         targetSdk = libs.versions.android.targetSdk.get().toInt()
         versionCode = 1
-        versionName = "1.0"
+        versionName = "0.1.0"
 
         ndk {
             //noinspection ChromeOsAbiSupport
@@ -73,6 +73,8 @@ android {
                 keyPassword = System.getenv("RELEASE_KEY_PASSWORD")
             }
             buildTypes.getByName("release").signingConfig = signingConfigs.getByName("release")
+        } else {
+            buildTypes.getByName("release").signingConfig = signingConfigs.getByName("debug")
         }
     }
     compileOptions {

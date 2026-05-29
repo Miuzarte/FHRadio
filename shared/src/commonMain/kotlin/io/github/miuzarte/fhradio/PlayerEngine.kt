@@ -15,7 +15,7 @@ class PlayerEngine(
     val patternEnabled: Boolean,
     val patternNodes: List<PatternNode>,
     val excludedTrackSuffixes: Set<String>,
-): RadioModeEngineV2(station) {
+): RadioModeEngine(station) {
 
     // 提供 current: 返回 current 的下一首, 到末尾时自动重建列表
     // 不提供 current: 返回自身维护的计数器的下一首

@@ -13,10 +13,12 @@ suspend fun importRadio(): ImportResult {
         val xmlPath = picker.pickedXmlPath!!
 
         val (result, parseCost) = measureTimedValue { RadioXmlParser.parse(xml) }
-        AppRuntime.snackbar("parse: ${parseCost.inWholeMilliseconds}ms")
+        AppRuntime.snackbar("xml解析耗时：${parseCost.inWholeMilliseconds}ms")
 
         val folder = picker.pickFolder()
             ?: return@withContext ImportResult.Cancelled
+
+        AppRuntime.snackbar("正在扫描音频文件，预计约一分钟...")
 
         val verify = AudioScanner().verifyOnly(result, folder)
 
@@ -25,17 +27,13 @@ suspend fun importRadio(): ImportResult {
         val totalDj = result.stations.sumOf { it.dj.size }
 
         if (!verify.anyMatched) {
-            withContext(Dispatchers.Main) {
-                AppRuntime.snackbar("导入失败: 没有匹配到任何音频文件")
-                verify.warnings.forEach { AppRuntime.snackbar(it) }
-            }
+            AppRuntime.snackbar("导入失败：没有匹配到任何音频文件")
+            verify.warnings.forEach { AppRuntime.snackbar(it) }
             return@withContext ImportResult.Cancelled
         }
 
-        withContext(Dispatchers.Main) {
-            AppRuntime.snackbar("导入成功: ${result.stations.size}电台 | $totalTracks 曲目 | $totalStingers Stinger | $totalDj DJ语音")
-            verify.warnings.forEach { AppRuntime.snackbar(it) }
-        }
+        AppRuntime.snackbar("导入成功：${result.stations.size}电台 | $totalTracks 曲目 | $totalStingers Stinger | $totalDj DJ语音")
+        verify.warnings.forEach { AppRuntime.snackbar(it) }
 
         ImportResult.Success(xmlPath, folder, result)
     }
