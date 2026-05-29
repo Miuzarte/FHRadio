@@ -9,7 +9,6 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import kotlin.math.roundToInt
 
 class TableScope internal constructor() {
     internal val items = mutableListOf<@Composable () -> Unit>()
@@ -20,9 +19,9 @@ class TableScope internal constructor() {
     }
 }
 
-// columns: 逐行填充，填满一行再下一行
-// rows:    逐列填充，填满一列再下一列
-// 两者互斥，必须指定其一
+// columns: 逐行填充, 填满一行再下一行
+// rows:    逐列填充, 填满一列再下一列
+// 两者互斥, 必须指定其一
 @Composable
 fun Table(
     modifier: Modifier = Modifier,
@@ -31,7 +30,10 @@ fun Table(
     spacing: Dp = 16.dp,
     content: @Composable TableScope.() -> Unit,
 ) {
-    require((columns > 0) xor (rows > 0)) { "必须指定 columns 或 rows 其一" }
+    val inColumn = columns > 0
+    val inRow = rows > 0
+
+    require(inColumn xor inRow) { "必须指定 columns 或 rows 其一" }
 
     val scope = remember { TableScope() }
     scope.items.clear()
@@ -40,8 +42,8 @@ fun Table(
     val count = scope.items.size
     if (count == 0) return
 
-    val colCount = if (columns > 0) columns else (count + rows - 1) / rows
-    val rowCount = if (rows > 0) rows else (count + columns - 1) / columns
+    val colCount = if (inColumn) columns else (count + rows - 1) / rows
+    val rowCount = if (inRow) rows else (count + columns - 1) / columns
     val spacingPx = with(LocalDensity.current) { spacing.roundToPx() }
     val itemList = scope.items.toList()
 
@@ -67,7 +69,7 @@ fun Table(
 
         val colWidths = IntArray(colCount) { 0 }
         for (i in round1.indices) {
-            val col = if (columns > 0) i % colCount else i / rows
+            val col = if (inColumn) i % colCount else i / rows
             colWidths[col] = maxOf(colWidths[col], round1[i].width)
         }
 
@@ -86,18 +88,18 @@ fun Table(
             totalWidth = containerWidth
 
             placeables = measurables.mapIndexed { i, m ->
-                val col = if (columns > 0) i % colCount else i / rows
+                val col = if (inColumn) i % colCount else i / rows
                 m.measure(constraints.copy(maxWidth = colWidths[col]))
             }
         }
 
-        if (columns > 0) {
+        if (inColumn) {
             val rowHeights = IntArray(rowCount) { 0 }
-            for (r in 0 until rowCount) {
-                for (c in 0 until colCount) {
-                    val idx = r * colCount + c
+            for (row in 0 until rowCount) {
+                for (col in 0 until colCount) {
+                    val idx = row * colCount + col
                     if (idx < count) {
-                        rowHeights[r] = maxOf(rowHeights[r], placeables[idx].height)
+                        rowHeights[row] = maxOf(rowHeights[row], placeables[idx].height)
                     }
                 }
             }
@@ -105,25 +107,25 @@ fun Table(
 
             layout(totalWidth, totalHeight) {
                 var y = 0
-                for (r in 0 until rowCount) {
+                for (row in 0 until rowCount) {
                     var x = 0
-                    for (c in 0 until colCount) {
-                        val idx = r * colCount + c
+                    for (col in 0 until colCount) {
+                        val idx = row * colCount + col
                         if (idx < count) {
                             placeables[idx].place(x, y)
                         }
-                        x += colWidths[c] + spacingPx
+                        x += colWidths[col] + spacingPx
                     }
-                    y += rowHeights[r]
+                    y += rowHeights[row]
                 }
             }
         } else {
             val rowHeights = IntArray(rowCount) { 0 }
-            for (c in 0 until colCount) {
-                for (r in 0 until rowCount) {
-                    val idx = c * rowCount + r
+            for (col in 0 until colCount) {
+                for (row in 0 until rowCount) {
+                    val idx = col * rowCount + row
                     if (idx < count) {
-                        rowHeights[r] = maxOf(rowHeights[r], placeables[idx].height)
+                        rowHeights[row] = maxOf(rowHeights[row], placeables[idx].height)
                     }
                 }
             }
@@ -131,16 +133,16 @@ fun Table(
 
             layout(totalWidth, totalHeight) {
                 var x = 0
-                for (c in 0 until colCount) {
+                for (col in 0 until colCount) {
                     var y = 0
-                    for (r in 0 until rowCount) {
-                        val idx = c * rowCount + r
+                    for (row in 0 until rowCount) {
+                        val idx = col * rowCount + row
                         if (idx < count) {
                             placeables[idx].place(x, y)
                         }
-                        y += rowHeights[r]
+                        y += rowHeights[row]
                     }
-                    x += colWidths[c] + spacingPx
+                    x += colWidths[col] + spacingPx
                 }
             }
         }

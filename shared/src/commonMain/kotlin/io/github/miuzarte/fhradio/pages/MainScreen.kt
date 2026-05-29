@@ -20,7 +20,9 @@ import io.github.miuzarte.fhradio.Radio
 import io.github.miuzarte.fhradio.constants.UiMotion
 import kotlinx.coroutines.*
 import top.yukonga.miuix.kmp.basic.*
+import top.yukonga.miuix.kmp.theme.ColorSchemeMode
 import top.yukonga.miuix.kmp.theme.MiuixTheme
+import top.yukonga.miuix.kmp.theme.ThemeController
 import top.yukonga.miuix.kmp.theme.MiuixTheme.colorScheme
 
 enum class MainTab(val label: String, val icon: ImageVector) {
@@ -119,7 +121,9 @@ fun MainScreen() {
         }
     }
 
-    MiuixTheme {
+    val themeController = remember { ThemeController(ColorSchemeMode.System) }
+
+    MiuixTheme(controller = themeController) {
         Scaffold(
             modifier = Modifier
                 .onPreviewKeyEvent { event ->
