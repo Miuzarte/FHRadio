@@ -11,6 +11,7 @@ dependencies {
 
     implementation(compose.desktop.currentOs)
     implementation(libs.kotlinx.coroutinesSwing)
+    implementation(libs.compose.components.resources)
 
     implementation(libs.compose.uiToolingPreview)
 }
@@ -21,7 +22,7 @@ compose.desktop {
 
         nativeDistributions {
             targetFormats(TargetFormat.Dmg, TargetFormat.Deb)
-            packageName = "io.github.miuzarte.fhradio"
+            packageName = "FHRadio"
             packageVersion = "0.1.0"
 
             windows.iconFile = project.file("resources/windows/icon.ico")

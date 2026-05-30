@@ -2,6 +2,10 @@
 
 # FHRadio
 
+<a href="resource/icon.svg">
+  <img src="resource/icon_white.png" width="128" height="128" alt="FHRadio" align="right" />
+</a>
+
 Forza Horizon (6) radio simulator
 
 ## 说明
@@ -19,7 +23,7 @@ Forza Horizon (6) radio simulator
 
 ## 下载
 
-\> ~~[releases](https://github.com/Miuzarte/FHRadio/releases)~~
+\> [releases](https://github.com/Miuzarte/FHRadio/releases)
 
 ## 截图
 
@@ -67,6 +71,8 @@ Forza Horizon (6) radio simulator
 
 ## Credits
 
+- 图标版权归属于 [Playground Games](https://playground-games.com) / Microsoft
+  - 来源: [wikimedia](https://commons.wikimedia.org/wiki/File:Forza_logo_2020.svg)
 - desktop 端媒体播放: [caprica/vlcj](https://github.com/caprica/vlcj)
 - desktop 端构建配置参考: [mahozad/cutcon](https://github.com/mahozad/cutcon)
 - 界面组件: [YuKongA/miuix](https://github.com/compose-miuix-ui/miuix)
