@@ -51,6 +51,15 @@ jobs:
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
 
+      - name: Install FFmpeg
+        shell: bash
+        run: |
+          if [ "$RUNNER_OS" = "Linux" ]; then
+            sudo apt-get update && sudo apt-get install -y ffmpeg
+          elif [ "$RUNNER_OS" = "Windows" ]; then
+            choco install ffmpeg -y
+          fi
+
       - name: Generate icons
         shell: bash
         run: |
@@ -157,6 +166,15 @@ jobs:
 
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
+
+      - name: Install FFmpeg
+        shell: bash
+        run: |
+          if [ "$RUNNER_OS" = "Linux" ]; then
+            sudo apt-get update && sudo apt-get install -y ffmpeg
+          elif [ "$RUNNER_OS" = "Windows" ]; then
+            choco install ffmpeg -y
+          fi
 
       - name: Generate icons
         shell: bash
