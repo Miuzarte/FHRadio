@@ -66,7 +66,11 @@ Forza Horizon (6) radio simulator
 2. 怎么同时听不同电台的曲目
     - 编辑 RadioInfo.xml 重新导入, 参考 `StreamerMode` 添加一个新的自定义电台, 或者直接改它也行
     - 注意应用默认隐藏 `StreamerMode`, 要在编辑电台源处手动解除隐藏
-3. 苹果怎么用
+3. 我想听地平线 4/5 的电台怎么办
+    - 地平线4: RadioInfo 中没有 DJ 的曲目, 同时也不清楚 bank 的结构, 大概率开摆
+    - 地平线5: 我电脑正好没有 5, 如果其 `RadioInfo_*.xml` 的版本为 `2`, 也许可以直接用
+      - `<Radio Version="2" TimeBetweenMidTrackDJLines="120" RecentlyPlayedMaxSize="-1">`
+4. 苹果怎么用
     - 写好 actual 的文件(夹)选择以及媒体播放器还有 workflow 构建最后提交 Pr 即可
 
 ## Credits

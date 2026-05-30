@@ -42,9 +42,8 @@
           - 9: R7_Tracks_CU1.assets.bank
           - 10: R8_Tracks_CU1.assets.bank
           - 11: R9_Tracks_CU1.assets.bank
-          - (btw R10 里只有一首, 是游戏启动到主菜单的音乐)
       - Stinger: (建议不跳过, 种子控制模式需要)
-        - 搜索 `R*_Stingers_CN.assets.bank`, 语言地区代码最好匹配前面选择的 `RadioInfo_*.xml`, 例如 `R*_Stingers_EN`
+        - 搜索 `R*_Stingers_CN.assets.bank`, 语言地区代码最好匹配前面选择的 `RadioInfo_*.xml`, 例如 `R*_Stingers_EN.assets.bank`
         - 复制 `R1_Stingers_*.assets.bank` ~ `R9_Stingers_*.assets.bank`
           - 1: R1_Stingers_CN.assets.bank
           - 2: R2_Stingers_CN.assets.bank
@@ -80,7 +79,7 @@
 
 - 将解包出来的 `.wav` 音频转换为 `.flac`/`.mp3` 等压缩后的音频格式
   - 所有电台包括 `Track`, `Stinger`, `DJ` 解包后占用一共 `12.9 GB`, 按 ffmpeg -compression_level 8 压缩为 `flac` 后, 占用 `6.32 GB`
-  - 具体支持格式取决于平台
+  - 具体支持格式~~取决于平台~~只有 `wav`, `flac`, `mp3`, `aac`, `ogg(opus)`
     - Desktop: 基于 [vlc](https://www.videolan.org/vlc/), [caprica/vlcj](https://github.com/caprica/vlcj), 支持绝大部分音频格式
     - Android: 基于 [MediaCodec](https://developer.android.com/media/platform/supported-formats), 根据文档: `flac`, `mp3`, `aac`, `ogg`(`opus`)
     - iOS: [TBD]
@@ -91,7 +90,7 @@
 - 整理解包好的音频 (新建与重命名文件夹)
   - 转到目录 `Fmod_Bank_Tools\wav\`
   - 跨多个 bank 的电台: (R1 Horizon Pulse 与 R2 Horizon Bass Arena)
-    - 以 `电台名` 创建文件夹: `Horizon Pulse\`
+    - 以 `{电台名}` 创建文件夹: `Horizon Pulse\`
     - `R1_Tracks_CU1.assets[0]\` -> `Horizon Pulse\Track\CU1\`
     - `R1_Tracks_Disk.assets[0]\` -> `Horizon Pulse\Track\Disk\`
     - `R1_Stingers_CN.assets[0]\` -> `Horizon Pulse\Stinger\`
