@@ -75,7 +75,7 @@ jobs:
 
       - name: Build Android (${{ matrix.target }})
         if: ${{ matrix.target == 'android' }}
-        run: ./gradlew :androidApp:assembleRelease -Pbuildkonfig.flavor=release
+        run: ./gradlew :androidApp:assembleRelease "-Pbuildkonfig.flavor=release"
         env:
           RELEASE_STORE_FILE: /tmp/release.p12
           RELEASE_STORE_PASSWORD: ${{ secrets.ANDROID_STORE_PASSWORD }}
@@ -84,7 +84,7 @@ jobs:
 
       - name: Build Desktop (${{ matrix.target }})
         if: ${{ matrix.target == 'desktop' }}
-        run: ./gradlew :desktopApp:createReleaseDistributable -Pbuildkonfig.flavor=release
+        run: ./gradlew :desktopApp:createReleaseDistributable "-Pbuildkonfig.flavor=release"
 
       - name: Bundle VLC (Desktop)
         if: ${{ matrix.target == 'desktop' }}
@@ -191,7 +191,7 @@ jobs:
 
       - name: Build Android (${{ matrix.target }})
         if: ${{ matrix.target == 'android' }}
-        run: ./gradlew :androidApp:assembleRelease -Pbuildkonfig.flavor=release
+        run: ./gradlew :androidApp:assembleRelease "-Pbuildkonfig.flavor=release"
         env:
           RELEASE_STORE_FILE: /tmp/release.p12
           RELEASE_STORE_PASSWORD: ${{ secrets.ANDROID_STORE_PASSWORD }}
@@ -200,7 +200,7 @@ jobs:
 
       - name: Build Windows (${{ matrix.target }})
         if: ${{ matrix.target == 'desktop' }}
-        run: ./gradlew :desktopApp:createReleaseDistributable -Pbuildkonfig.flavor=release
+        run: ./gradlew :desktopApp:createReleaseDistributable "-Pbuildkonfig.flavor=release"
 
       - name: Bundle VLC (Windows)
         if: ${{ matrix.target == 'desktop' }}
