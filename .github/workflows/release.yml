@@ -206,7 +206,9 @@ jobs:
         if: ${{ matrix.target == 'desktop' }}
         shell: pwsh
         run: |
-          $appDir = Get-ChildItem -Path desktopApp/build/compose/binaries -Recurse -Directory -Filter app | Select-Object -First 1
+          $appDir = Get-ChildItem -Path desktopApp/build/compose/binaries -Recurse -Directory -Filter app |
+            ForEach-Object { Get-ChildItem -Path $_.FullName -Directory } |
+            Select-Object -First 1
           $vlcDir = "$($appDir.FullName)/vlc"
           New-Item -ItemType Directory -Force -Path $vlcDir | Out-Null
           $vlcUrl = "https://download.videolan.org/pub/videolan/vlc/3.0.23/win64/vlc-3.0.23-win64.zip"
@@ -266,7 +268,7 @@ jobs:
             echo "| ------------ | ---- | -------------- |"
 
             shopt -s nullglob
-            for file in dist/*; do
+            for file in dist/*.apk dist/*.zip; do
               file_name="$(basename "$file")"
 
               platform="unknown"
@@ -295,7 +297,7 @@ jobs:
               size_bytes="$(stat -c%s "$file")"
               size_mb="$(awk -v bytes="$size_bytes" 'BEGIN { printf "%.1f MB", bytes / 1048576 }')"
 
-              echo "| ${platform}<br>${arch} [${file_name}](${file_url})<br><br>[你的反代跨越了半个地球🐌<br>但是你套的Cloudflare☁️又弥补了这一部分🚀](${proxy_url}) | ${size_mb}<br>\`${sha256_value}\` |"
+              echo "| ${platform}<br>${arch} | [${file_name}](${file_url})<br><br>[你的反代跨越了半个地球🐌<br>但是你套的Cloudflare☁️又弥补了这一部分🚀](${proxy_url}) | ${size_mb}<br>\`${sha256_value}\` |"
             done
           } > "$notes_file"
 
